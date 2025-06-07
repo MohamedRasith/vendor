@@ -155,8 +155,8 @@ class _DashboardPageState extends State<DashboardPage> {
                 ],
               ),
               Expanded(
-                child: SizedBox(
-                  width: MediaQuery.of(context).size.width, // Set a fixed width for the card
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
                   child: Card(
                     color: Colors.white,
                     shape: RoundedRectangleBorder(
@@ -164,55 +164,63 @@ class _DashboardPageState extends State<DashboardPage> {
                       side: BorderSide(color: Colors.grey.shade300, width: 1),
                     ),
                     elevation: 4,
-                    margin: const EdgeInsets.all(16),
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      child: DataTable(
-                        columns: const [
-                          DataColumn(label: Text('Product Name')),
-                          DataColumn(label: Text('Category')),
-                          DataColumn(label: Text("Country")),
-                          DataColumn(label: Text('Price')),
-                          DataColumn(label: Text('Vendor Name'))
-                        ],
-                        rows: products.map((product) {
-                          return DataRow(cells: [
-                            DataCell(Row(
-                              children: [
-                                product['Image 1'] != null && product['Image 1'].isNotEmpty
-                                    ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    product['Image 1'],
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth: MediaQuery.of(context).size.width,
+                        ),
+                        child: DataTable(
+                          columnSpacing: 20,
+                          dataRowMinHeight: 50,
+                          dataRowMaxHeight: 60,
+                          columns: const [
+                            DataColumn(label: Text('Product Name')),
+                            DataColumn(label: Text('Category')),
+                            DataColumn(label: Text("Country")),
+                            DataColumn(label: Text('Price')),
+                            DataColumn(label: Text('Vendor Name')),
+                          ],
+                          rows: products.map((product) {
+                            return DataRow(cells: [
+                              DataCell(Row(
+                                children: [
+                                  product['Image 1'] != null && product['Image 1'].isNotEmpty
+                                      ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      product['Image 1'],
+                                      width: 30,
+                                      height: 30,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                      : Container(
                                     width: 30,
                                     height: 30,
-                                    fit: BoxFit.cover,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[300],
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(Icons.image_not_supported, size: 16),
                                   ),
-                                )
-                                    : Container(
-                                  width: 50,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[300],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(Icons.image_not_supported),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(product['Brand'] ?? 'No Name'),
-                              ],
-                            )),
-                            DataCell(Text('${product['Category'] ?? ""}')),
-                            DataCell(Text('${product['Country of Origin'] ?? ""}')),
-                            DataCell(Text('\$${product['RSP'] ?? '0.00'}')),
-                            DataCell(Text('${product['Vendor '] ?? ""}')),
-                          ]);
-                        }).toList(),
+                                  const SizedBox(width: 8),
+                                  Flexible(child: Text(product['Brand'] ?? 'No Name')),
+                                ],
+                              )),
+                              DataCell(Text('${product['Category'] ?? ""}')),
+                              DataCell(Text('${product['Country of Origin'] ?? ""}')),
+                              DataCell(Text('\$${product['RSP'] ?? '0.00'}')),
+                              DataCell(Text('${product['Vendor '] ?? ""}')),
+                            ]);
+                          }).toList(),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              )
+              ),
+
 
 
             ],
