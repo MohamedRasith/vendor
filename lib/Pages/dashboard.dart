@@ -177,7 +177,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           columns: const [
                             DataColumn(label: Text('Product Name')),
                             DataColumn(label: Text('Category')),
-                            DataColumn(label: Text("Country")),
+                            DataColumn(label: Text("Country of Origin")),
                             DataColumn(label: Text('Price')),
                             DataColumn(label: Text('Vendor Name')),
                           ],
