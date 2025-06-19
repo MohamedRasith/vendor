@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:vendor/Pages/add_orders.dart';
 import 'package:vendor/Pages/add_products.dart';
 import 'package:excel/excel.dart';
 
@@ -83,6 +85,131 @@ class _DashboardPageState extends State<DashboardPage> {
 
     setState(() => isLoading = false);
   }
+
+  Widget getOrdersPageContent() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('orders').orderBy('createdAt', descending: true).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: \${snapshot.error}'));
+        }
+
+        final orders = snapshot.data?.docs ?? [];
+
+        if (orders.isEmpty) {
+          return Center(
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AddOrderPage()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              child: const Text("Add Orders"),
+            ),
+          );
+        } else {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const AddOrderPage()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      child: const Text("Add Orders"),
+                    ),
+                  ),
+                  Center(
+                    child: isLoading
+                        ? const CircularProgressIndicator()
+                        : ElevatedButton.icon(
+                      onPressed: pickAndUploadExcel, // Implement excel import logic
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text('Import Excel File'),
+                    ),
+                  ),
+                ],
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Card(
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: Colors.grey.shade300, width: 1),
+                    ),
+                    elevation: 4,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth: MediaQuery.of(context).size.width,
+                        ),
+                        child: DataTable(
+                          columnSpacing: 20,
+                          dataRowMinHeight: 50,
+                          dataRowMaxHeight: 60,
+                          columns: const [
+                            DataColumn(label: Text('Amazon PO')),
+                            DataColumn(label: Text('BNB PO')),
+                            DataColumn(label: Text('Vendor')),
+                            DataColumn(label: Text('Delivery Location')),
+                            DataColumn(label: Text('ASN')),
+                            DataColumn(label: Text('Appointment ID')),
+                            DataColumn(label: Text('Appointment Date')),
+                          ],
+                          rows: orders.map((order) {
+                            final Timestamp? ts = order['appointmentDate'];
+                            final String formattedDate = ts != null
+                                ? DateFormat('yyyy-MM-dd hh:mm a').format(ts.toDate())
+                                : '';
+                            return DataRow(cells: [
+                              DataCell(Text(order['amazonPONumber'] ?? '')),
+                              DataCell(Text(order['bnbPONumber'] ?? '')),
+                              DataCell(Text(order['vendor'] ?? '')),
+                              DataCell(Text(order['location'] ?? '')),
+                              DataCell(Text(order['asn'] ?? '')),
+                              DataCell(Text(order['appointmentId'] ?? '')),
+                              DataCell(Text(formattedDate)),
+                            ]);
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+      },
+    );
+  }
+
 
 
   Widget getProductsPageContent() {
@@ -235,7 +362,7 @@ class _DashboardPageState extends State<DashboardPage> {
       case 0:
         return const Center(child: Text("Welcome to Home Page", style: TextStyle(fontSize: 24)));
       case 1:
-        return const Center(child: Text("Orders Page", style: TextStyle(fontSize: 24)));
+        return getOrdersPageContent();
       case 2:
         return getProductsPageContent();
       case 3:
@@ -247,47 +374,83 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Scaffold(
+      appBar: isMobile
+          ? AppBar(
+        backgroundColor: Colors.blueGrey[900],
+        title: Text(titles[selectedIndex], style: const TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
+      )
+          : null,
+      drawer: isMobile
+          ? Drawer(
+        child: Column(
+          children: [
+            const SizedBox(height: 50),
+            ...List.generate(titles.length, (index) {
+              return ListTile(
+                leading: Icon(
+                  icons[index],
+                  color: selectedIndex == index ? Colors.black : Colors.grey,
+                ),
+                title: Text(
+                  titles[index],
+                  style: TextStyle(
+                    fontWeight: selectedIndex == index ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                onTap: () {
+                  setState(() {
+                    selectedIndex = index;
+                  });
+                  Navigator.pop(context); // Close drawer
+                },
+              );
+            }),
+          ],
+        ),
+      )
+          : null,
       body: Row(
         children: [
-          // Left Nav Bar
-          Container(
-            width: 200,
-            color: Colors.blueGrey[900],
-            child: Column(
-              children: [
-                const SizedBox(height: 50),
-                ...List.generate(titles.length, (index) {
-                  return ListTile(
-                    leading: Icon(
-                      icons[index],
-                      color: selectedIndex == index ? Colors.white : Colors.grey,
-                    ),
-                    title: Text(
-                      titles[index],
-                      style: TextStyle(
+          if (!isMobile)
+            Container(
+              width: 200,
+              color: Colors.blueGrey[900],
+              child: Column(
+                children: [
+                  const SizedBox(height: 50),
+                  ...List.generate(titles.length, (index) {
+                    return ListTile(
+                      leading: Icon(
+                        icons[index],
                         color: selectedIndex == index ? Colors.white : Colors.grey,
-                        fontWeight: selectedIndex == index ? FontWeight.bold : FontWeight.normal,
                       ),
-                    ),
-                    selected: selectedIndex == index,
-                    selectedTileColor: Colors.blueGrey[700],
-                    onTap: () {
-                      setState(() {
-                        selectedIndex = index;
-                      });
-                    },
-                  );
-                }),
-              ],
+                      title: Text(
+                        titles[index],
+                        style: TextStyle(
+                          color: selectedIndex == index ? Colors.white : Colors.grey,
+                          fontWeight: selectedIndex == index ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      selected: selectedIndex == index,
+                      selectedTileColor: Colors.blueGrey[700],
+                      onTap: () {
+                        setState(() {
+                          selectedIndex = index;
+                        });
+                      },
+                    );
+                  }),
+                ],
+              ),
             ),
-          ),
-
-          // Right Content Area
           Expanded(
             child: Container(
               color: Colors.grey[100],
-              padding: const EdgeInsets.all(32),
+              padding: const EdgeInsets.all(16),
               child: getSelectedPageContent(),
             ),
           ),

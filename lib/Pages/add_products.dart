@@ -6,7 +6,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import 'package:vendor/widget/category_drop_down.dart';
-import 'package:vendor/widget/image_upload_widget.dart';
 
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
@@ -283,7 +282,7 @@ class _AddProductPageState extends State<AddProductPage> {
                                   });
                                 },
                                 child: Container(
-                                  decoration: BoxDecoration(
+                                  decoration: const BoxDecoration(
                                     color: Colors.black54,
                                     shape: BoxShape.circle,
                                   ),
@@ -309,7 +308,7 @@ class _AddProductPageState extends State<AddProductPage> {
                               height: 100,
                               decoration: BoxDecoration(border: Border.all(color: Colors.grey)),
                               child: isImageLoading?
-                                  CircularProgressIndicator()
+                                  const CircularProgressIndicator()
                                   :const Center(child: Icon(Icons.add_a_photo)),
                             ),
                           ),
