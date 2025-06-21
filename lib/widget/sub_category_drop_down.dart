@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class CategoryDropdown extends StatefulWidget {
+class SubCategoryDropDown extends StatefulWidget {
   final TextEditingController controller;
 
-  const CategoryDropdown({super.key, required this.controller});
+  const SubCategoryDropDown({super.key, required this.controller});
 
   @override
-  State<CategoryDropdown> createState() => _CategoryDropdownState();
+  State<SubCategoryDropDown> createState() => _SubCategoryDropDownState();
 }
 
-class _CategoryDropdownState extends State<CategoryDropdown> {
+class _SubCategoryDropDownState extends State<SubCategoryDropDown> {
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? overlayEntry;
   List<String> allCategories = [];
@@ -24,7 +24,7 @@ class _CategoryDropdownState extends State<CategoryDropdown> {
   }
 
   Future<void> fetchCategories() async {
-    final snapshot = await FirebaseFirestore.instance.collection('categories').get();
+    final snapshot = await FirebaseFirestore.instance.collection('sub_categories').get();
     setState(() {
       allCategories = snapshot.docs.map((doc) => doc['name'].toString()).toList();
     });
@@ -99,14 +99,14 @@ class _CategoryDropdownState extends State<CategoryDropdown> {
     final categoryName = name.trim();
     if (categoryName.isEmpty || allCategories.contains(categoryName)) return;
 
-    await FirebaseFirestore.instance.collection('categories').add({'name': categoryName});
+    await FirebaseFirestore.instance.collection('sub_categories').add({'name': categoryName});
     setState(() {
       allCategories.add(categoryName);
       widget.controller.text = categoryName;
       showAddButton = false;
       hideOverlay();
     });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Category "$categoryName" added.')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sub Category "$categoryName" added.')));
   }
 
   @override
@@ -122,7 +122,7 @@ class _CategoryDropdownState extends State<CategoryDropdown> {
       child: TextFormField(
         controller: widget.controller,
         decoration: InputDecoration(
-          labelText: 'Category',
+          labelText: 'Sub Category',
           border: const OutlineInputBorder(),
           suffixIcon: showAddButton
               ? IconButton(
@@ -132,7 +132,7 @@ class _CategoryDropdownState extends State<CategoryDropdown> {
               : null,
         ),
         onChanged: onTextChanged,
-        validator: (value) => value == null || value.trim().isEmpty ? 'Category is required' : null,
+        validator: (value) => value == null || value.trim().isEmpty ? 'Sub Category is required' : null,
       ),
     );
   }

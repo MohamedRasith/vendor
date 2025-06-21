@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import 'package:vendor/widget/category_drop_down.dart';
+import 'package:vendor/widget/sub_category_drop_down.dart';
 
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
@@ -97,7 +98,7 @@ class _AddProductPageState extends State<AddProductPage> {
       return;
     }
 
-    if (uploadedImages.length < 2) {
+    if (imageUrls.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("At least 2 images are required.")),
       );
@@ -109,33 +110,32 @@ class _AddProductPageState extends State<AddProductPage> {
     });
 
     Map<String, dynamic> data = {
-      'brand': controllers['brand']!.text,
-      'title': controllers['title']!.text,
-      'barcode': controllers['barcode']!.text,
-      'asin': controllers['asin']!.text,
-      'nin': controllers['nin']!.text,
-      'description': controllers['description']!.text,
-      'category': controllers['category']!.text,
-      'subcategory': controllers['subcategory']!.text,
-      'features': [
-        controllers['feature1']!.text,
-        controllers['feature2']!.text,
-        controllers['feature3']!.text,
-        controllers['feature4']!.text
-      ],
-      'images': uploadedImages,
-      'dimensions': {
-        'weightKg': controllers['weight']!.text,
-        'lengthCm': controllers['length']!.text,
-        'widthCm': controllers['width']!.text,
-        'heightCm': controllers['height']!.text,
-      },
-      'origin': controllers['origin']!.text,
-      'hsnCode': controllers['hsn']!.text,
-      'vendor': controllers['vendor']!.text,
-      'purchasePrice': double.tryParse(controllers['purchasePrice']!.text),
-      'rsp': double.tryParse(controllers['rsp']!.text),
-      'createdAt': FieldValue.serverTimestamp(),
+      'Brand': controllers['brand']!.text,
+      'Product Title': controllers['title']!.text,
+      'Barcode': controllers['barcode']!.text,
+      'ASIN': controllers['asin']!.text,
+      'NIN': controllers['nin']!.text,
+      'Description': controllers['description']!.text,
+      'Category': controllers['category']!.text,
+      'Sub Category': controllers['subcategory']!.text,
+      'Feature 1': controllers['feature1']!.text,
+      'Feature 2':controllers['feature2']!.text,
+      'Feature 3': controllers['feature3']!.text,
+      'Feature 4': controllers['feature4']!.text,
+      'Image 1': imageUrls.length > 0 ? imageUrls[0] : "",
+      'Image 2': imageUrls.length > 1 ? imageUrls[1] : "",
+      'Image 3': imageUrls.length > 2 ? imageUrls[2] : "",
+      'Image 4': imageUrls.length > 3 ? imageUrls[3] : "",
+      'Image 5': imageUrls.length > 4 ? imageUrls[4] : "",
+      'Weight KG': controllers['weight']!.text,
+      'Length CM': controllers['length']!.text,
+      'Width CM': controllers['width']!.text,
+      'Height CM': controllers['height']!.text,
+      'Country of Origin': controllers['origin']!.text,
+      'HSN Code': controllers['hsn']!.text,
+      'Vendor ': controllers['vendor']!.text,
+      'Purchase Price': double.tryParse(controllers['purchasePrice']!.text),
+      'RSP': double.tryParse(controllers['rsp']!.text),
     };
 
     await FirebaseFirestore.instance.collection('products').add(data);
@@ -188,7 +188,11 @@ class _AddProductPageState extends State<AddProductPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Add Product")),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+          backgroundColor: Colors.black,
+          iconTheme: const IconThemeData(color: Colors.white),
+          title: const Text("Add Product", style: TextStyle(color: Colors.white),)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -209,28 +213,7 @@ class _AddProductPageState extends State<AddProductPage> {
                     buildTextField("Description", "description", required: true),
                     CategoryDropdown(controller: controllers['category']!),
                     const SizedBox(height: 16),
-
-                    DropdownButtonFormField<String>(
-                      value: selectedSubCategory,
-                      decoration: const InputDecoration(
-                        labelText: 'Sub Category',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                      items: (subcategories[selectedCategory] ?? []).map((sub) {
-                        return DropdownMenuItem<String>(
-                          value: sub,
-                          child: Text(sub),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedSubCategory = value;
-                          controllers['subcategory']!.text = value!;
-                        });
-                      },
-                      validator: (value) => value == null ? 'Sub Category is required' : null,
-                    ),
+                    SubCategoryDropDown(controller: controllers['subcategory']!),
                     buildTextField("Feature 1", "feature1", required: true),
                     buildTextField("Feature 2", "feature2", required: true),
                     buildTextField("Feature 3", "feature3", required: true),
