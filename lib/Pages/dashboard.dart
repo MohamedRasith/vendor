@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:vendor/Pages/add_orders.dart';
 import 'package:vendor/Pages/add_products.dart';
@@ -118,29 +117,73 @@ class _DashboardPageState extends State<DashboardPage> {
   void exportFilteredProductsToExcelWeb(
       List<QueryDocumentSnapshot> filteredProducts) {
     final excel = Excel.createExcel();
+    final String oldSheetName = excel.getDefaultSheet()!;
+    excel.rename(oldSheetName, 'Products');
     final sheet = excel['Products'];
 
     // Add headers
     sheet.appendRow([
-      TextCellValue('Product Name'),
-      TextCellValue('ASIN'),
+      TextCellValue('Brand'),
+      TextCellValue('Product Title'),
       TextCellValue('Barcode'),
+      TextCellValue('ASIN'),
+      TextCellValue('NIN'),
+      TextCellValue('Description'),
+      TextCellValue('Category'),
+      TextCellValue('Sub Category'),
+      TextCellValue('Feature 1'),
+      TextCellValue('Feature 2'),
+      TextCellValue('Feature 3'),
+      TextCellValue('Feature 4'),
+      TextCellValue('Image 1'),
+      TextCellValue('Image 2'),
+      TextCellValue('Image 3'),
+      TextCellValue('Image 4'),
+      TextCellValue('Image 5'),
+      TextCellValue('Weight KG'),
+      TextCellValue('Length CM'),
+      TextCellValue('Width CM'),
+      TextCellValue('Height CM'),
+      TextCellValue('Country of Origin'),
+      TextCellValue('HSN Code'),
+      TextCellValue('Vendor'),
       TextCellValue('Purchase Price'),
       TextCellValue('RSP'),
-      TextCellValue('Vendor Name'),
     ]);
+
 
     // Add product rows
     for (var product in filteredProducts) {
       sheet.appendRow([
         TextCellValue(product['Brand']?.toString() ?? ''),
-        TextCellValue(product['ASIN']?.toString() ?? ''),
+        TextCellValue(product['Product Title']?.toString() ?? ''),
         TextCellValue(product['Barcode']?.toString() ?? ''),
-        TextCellValue('AED ${product['Purchase Price'] ?? '0.00'}'),
-        TextCellValue('AED ${product['RSP'] ?? '0.00'}'),
+        TextCellValue(product['ASIN']?.toString() ?? ''),
+        TextCellValue(product['NIN']?.toString() ?? ''),
+        TextCellValue(product['Description']?.toString() ?? ''),
+        TextCellValue(product['Category']?.toString() ?? ''),
+        TextCellValue(product['Sub Category']?.toString() ?? ''),
+        TextCellValue(product['Feature 1']?.toString() ?? ''),
+        TextCellValue(product['Feature 2']?.toString() ?? ''),
+        TextCellValue(product['Feature 3']?.toString() ?? ''),
+        TextCellValue(product['Feature 4']?.toString() ?? ''),
+        TextCellValue(product['Image 1']?.toString() ?? ''),
+        TextCellValue(product['Image 2']?.toString() ?? ''),
+        TextCellValue(product['Image 3']?.toString() ?? ''),
+        TextCellValue(product['Image 4']?.toString() ?? ''),
+        TextCellValue(product['Image 5']?.toString() ?? ''),
+        TextCellValue(product['Weight KG']?.toString() ?? ''),
+        TextCellValue(product['Length CM']?.toString() ?? ''),
+        TextCellValue(product['Width CM']?.toString() ?? ''),
+        TextCellValue(product['Height CM']?.toString() ?? ''),
+        TextCellValue(product['Country of Origin']?.toString() ?? ''),
+        TextCellValue(product['HSN Code']?.toString() ?? ''),
         TextCellValue(product['Vendor ']?.toString() ?? ''),
+        TextCellValue(product['Purchase Price']?.toString() ?? ''),
+        TextCellValue(product['RSP']?.toString() ?? ''),
       ]);
     }
+
 
     // Convert to bytes
     final List<int>? bytes = excel.encode();
