@@ -1,9 +1,12 @@
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:carousel_slider/carousel_slider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class EditProductPage extends StatefulWidget {
   final DocumentSnapshot product;
@@ -36,14 +39,28 @@ class _EditProductPageState extends State<EditProductPage> {
   late TextEditingController heightController;
   late TextEditingController lengthController;
   late TextEditingController widthController;
+  Map<String, bool> isUploadingImage = {
+    'Image 1': false,
+    'Image 2': false,
+    'Image 3': false,
+    'Image 4': false,
+    'Image 5': false,
+  };
   Map<String, String?> imageUrls = {};
+  final CarouselController _carouselController = CarouselController();
+  int _currentImageIndex = 0;
+  Map<String, String?> originalImageUrls = {};
+
 
   @override
   void initState() {
     super.initState();
     final data = widget.product.data() as Map<String, dynamic>;
     for (int i = 1; i <= 5; i++) {
-      imageUrls['Image $i'] = data['Image $i'] as String? ?? '';
+      final key = 'Image $i';
+      final url = data[key] as String? ?? '';
+      imageUrls[key] = url;
+      originalImageUrls[key] = url;
     }
     brandController = TextEditingController(text: widget.product['Brand'] ?? '');
     categoryController = TextEditingController(text: widget.product['Category'] ?? '');
@@ -95,29 +112,64 @@ class _EditProductPageState extends State<EditProductPage> {
 
   Future<void> _pickAndUploadImage(String key) async {
     final result = await FilePicker.platform.pickFiles(type: FileType.image);
-    if (result?.files.single.path == null) return;
 
-    final file = File(result!.files.single.path!);
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}_${result.files.single.name}';
-    final ref = FirebaseStorage.instance.ref('product_images/$fileName');
+    if (result == null || result.files.isEmpty) return;
 
-    final snap = await ref.putFile(file);
-    final url = await snap.ref.getDownloadURL();
+    try {
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${result.files.single.name}';
+      final ref = FirebaseStorage.instance.ref('product_images/$fileName');
 
-    // Update Firestore
-    await FirebaseFirestore.instance
-        .collection('products')
-        .doc(widget.product.id)
-        .update({key: url});
+      // 🔴 Delete previous image from storage (if any)
+      final oldUrl = imageUrls[key];
+      if (oldUrl != null && oldUrl.isNotEmpty) {
+        try {
+          final oldRef = FirebaseStorage.instance.refFromURL(oldUrl);
+          await oldRef.delete();
+        } catch (e) {
+          debugPrint('Failed to delete old image: $e');
+        }
+      }
 
-    setState(() { imageUrls[key] = url; });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$key updated')));
+      // ✅ Upload new image
+      UploadTask uploadTask;
+      if (kIsWeb) {
+        // For Web
+        final Uint8List fileBytes = result.files.single.bytes!;
+        uploadTask = ref.putData(fileBytes);
+      } else {
+        // For Mobile/Desktop
+        final filePath = result.files.single.path!;
+        final file = File(filePath);
+        uploadTask = ref.putFile(file);
+      }
+
+      final snap = await uploadTask;
+      final newUrl = await snap.ref.getDownloadURL();
+
+      setState(() {
+        imageUrls[key] = '$newUrl?ts=${DateTime.now().millisecondsSinceEpoch}'; // cache bust
+      });
+
+      // ✅ Update Firestore (save clean URL without timestamp)
+      await FirebaseFirestore.instance
+          .collection('products')
+          .doc(widget.product.id)
+          .update({key: newUrl});
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$key updated')));
+    } catch (e) {
+      debugPrint('Image update failed for $key: $e');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update $key')));
+    }
   }
+
+
+
 
   Future<void> updateProduct() async {
     if (_formKey.currentState?.validate() != true) return;
 
-    await FirebaseFirestore.instance.collection('products').doc(widget.product.id).update({
+    Map<String, dynamic> updateData = {
       'Brand': brandController.text.trim(),
       'Category': categoryController.text.trim(),
       'Sub Category': subCategoryController.text.trim(),
@@ -137,18 +189,29 @@ class _EditProductPageState extends State<EditProductPage> {
       'Height CM': double.tryParse(heightController.text.trim()) ?? 0.0,
       'Length CM': double.tryParse(lengthController.text.trim()) ?? 0.0,
       'Width CM': double.tryParse(widthController.text.trim()) ?? 0.0,
-      'Image 1': imageUrls.length > 0 ? imageUrls[0] : "",
-      'Image 2': imageUrls.length > 1 ? imageUrls[1] : "",
-      'Image 3': imageUrls.length > 2 ? imageUrls[2] : "",
-      'Image 4': imageUrls.length > 3 ? imageUrls[3] : "",
-      'Image 5': imageUrls.length > 4 ? imageUrls[4] : ""
-    });
+    };
+
+    // Only add changed image URLs
+    for (int i = 1; i <= 5; i++) {
+      final key = 'Image $i';
+      final currentUrl = imageUrls[key] ?? '';
+      final originalUrl = originalImageUrls[key] ?? '';
+      if (currentUrl != originalUrl) {
+        updateData[key] = currentUrl;
+      }
+    }
+
+    await FirebaseFirestore.instance
+        .collection('products')
+        .doc(widget.product.id)
+        .update(updateData);
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Product updated successfully')),
     );
     Navigator.pop(context);
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -166,13 +229,50 @@ class _EditProductPageState extends State<EditProductPage> {
             child: Wrap(
               runSpacing: 12,
               children: [
-                Center(
-                  child: CircleAvatar(
-                    radius: 30, // You can adjust the radius
-                    backgroundImage: NetworkImage(widget.product['Image 1']),
-                    backgroundColor: Colors.grey[200], // Optional: fallback background
-                  ),
+            if (imageUrls.values.any((url) => url != null && url.isNotEmpty))
+              CarouselSlider.builder(
+                itemCount: imageUrls.entries
+                    .where((e) => e.value != null && e.value!.isNotEmpty)
+                    .length,
+                itemBuilder: (context, index, realIndex) {
+                  final filteredEntries = imageUrls.entries
+                      .where((e) => e.value != null && e.value!.isNotEmpty)
+                      .toList();
+                  final entry = filteredEntries[index];
+
+                  return Container(
+                    width: 300, // Set your desired width
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.grey[200],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        entry.value!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
+                      ),
+                    ),
+                  );
+                },
+                options: CarouselOptions(
+                  height: 300, // Total height of the carousel (including image + dots)
+                  enlargeCenterPage: true,
+                  enableInfiniteScroll: false,
+                  viewportFraction: 0.7,
+                  autoPlay: false,
+                  onPageChanged: (index, reason) {
+                    setState(() {
+                      _currentImageIndex = index;
+                    });
+                  },
                 ),
+              )
+    else
+    const Center(child: Text('No Images')),
+
                 TextFormField(controller: brandController, decoration: const InputDecoration(labelText: 'Product Name'), validator: (val) => val!.isEmpty ? 'Required' : null),
                 TextFormField(controller: categoryController, decoration: const InputDecoration(labelText: 'Category')),
                 TextFormField(controller: subCategoryController, decoration: const InputDecoration(labelText: 'Sub Category')),
@@ -192,20 +292,28 @@ class _EditProductPageState extends State<EditProductPage> {
                 TextFormField(controller: heightController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Height (CM)')),
                 TextFormField(controller: lengthController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Length (CM)')),
                 TextFormField(controller: widthController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Width (CM)')),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.center,
                   children: List.generate(5, (i) {
                     final key = 'Image ${i + 1}';
                     final url = imageUrls[key];
                     return GestureDetector(
-                      onTap: () => _pickAndUploadImage(key),
+                      onTap: () async {
+                        setState(() => isUploadingImage[key] = true);
+                        await _pickAndUploadImage(key);
+                        setState(() => isUploadingImage[key] = false);
+                      },
                       child: CircleAvatar(
-                        radius: 30,
+                        radius: 35,
                         backgroundImage: (url != null && url.isNotEmpty)
                             ? NetworkImage(url)
                             : null,
-                        backgroundColor: Colors.grey[200],
-                        child: (url == null || url.isEmpty)
+                        backgroundColor: Colors.grey[300],
+                        child: isUploadingImage[key] == true
+                            ? const CircularProgressIndicator()
+                            : (url == null || url.isEmpty)
                             ? const Icon(Icons.add_a_photo)
                             : null,
                       ),

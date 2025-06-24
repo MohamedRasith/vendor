@@ -215,7 +215,7 @@ class _DashboardPageState extends State<DashboardPage> {
         }
 
         if (snapshot.hasError) {
-          return Center(child: Text('Error: \${snapshot.error}'));
+          return const Center(child: Text('Error: \${snapshot.error}'));
         }
 
         final orders = snapshot.data?.docs ?? [];
@@ -289,43 +289,47 @@ class _DashboardPageState extends State<DashboardPage> {
                       side: BorderSide(color: Colors.grey.shade300, width: 1),
                     ),
                     elevation: 4,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minWidth: MediaQuery.of(context).size.width,
-                        ),
-                        child: DataTable(
-                          columnSpacing: 20,
-                          dataRowMinHeight: 50,
-                          dataRowMaxHeight: 60,
-                          columns: const [
-                            DataColumn(label: Text('Amazon PO')),
-                            DataColumn(label: Text('BNB PO')),
-                            DataColumn(label: Text('Vendor')),
-                            DataColumn(label: Text('Delivery Location')),
-                            DataColumn(label: Text('ASN')),
-                            DataColumn(label: Text('Appointment ID')),
-                            DataColumn(label: Text('Appointment Date')),
-                          ],
-                          rows: orders.map((order) {
-                            final Timestamp? ts = order['appointmentDate'];
-                            final String formattedDate = ts != null
-                                ? DateFormat('yyyy-MM-dd hh:mm a')
-                                    .format(ts.toDate())
-                                : '';
-                            return DataRow(cells: [
-                              DataCell(Text(order['amazonPONumber'] ?? '')),
-                              DataCell(Text(order['bnbPONumber'] ?? '')),
-                              DataCell(Text(order['vendor'] ?? '')),
-                              DataCell(Text(order['location'] ?? '')),
-                              DataCell(Text(order['asn'] ?? '')),
-                              DataCell(Text(order['appointmentId'] ?? '')),
-                              DataCell(Text(formattedDate)),
-                            ]);
-                          }).toList(),
-                        ),
-                      ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return SingleChildScrollView(
+                          child: IntrinsicWidth(
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                  minWidth: constraints.maxWidth),
+                              child: DataTable(
+                                columnSpacing: 20,
+                                dataRowMinHeight: 50,
+                                dataRowMaxHeight: 60,
+                                columns: const [
+                                  DataColumn(label: Text('Amazon PO')),
+                                  DataColumn(label: Text('BNB PO')),
+                                  DataColumn(label: Text('Vendor')),
+                                  DataColumn(label: Text('Delivery Location')),
+                                  DataColumn(label: Text('ASN')),
+                                  DataColumn(label: Text('Appointment ID')),
+                                  DataColumn(label: Text('Appointment Date')),
+                                ],
+                                rows: orders.map((order) {
+                                  final Timestamp? ts = order['appointmentDate'];
+                                  final String formattedDate = ts != null
+                                      ? DateFormat('yyyy-MM-dd hh:mm a')
+                                          .format(ts.toDate())
+                                      : '';
+                                  return DataRow(cells: [
+                                    DataCell(Text(order['amazonPONumber'] ?? '')),
+                                    DataCell(Text(order['bnbPONumber'] ?? '')),
+                                    DataCell(Text(order['vendor'] ?? '')),
+                                    DataCell(Text(order['location'] ?? '')),
+                                    DataCell(Text(order['asn'] ?? '')),
+                                    DataCell(Text(order['appointmentId'] ?? '')),
+                                    DataCell(Text(formattedDate)),
+                                  ]);
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
                     ),
                   ),
                 ),
@@ -340,57 +344,60 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget getProductsPageContent() {
     return Column(
       children: [
-        Row(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const AddProductPage()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  textStyle: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const AddProductPage()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    textStyle: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  child: const Text("Add Products"),
                 ),
-                child: const Text("Add Products"),
               ),
-            ),
-            Center(
-              child: isLoading
-                  ? const CircularProgressIndicator()
-                  : ElevatedButton.icon(
-                      onPressed: pickAndUploadExcel,
-                      icon: const Icon(Icons.upload_file),
-                      label: const Text('Import Excel File'),
-                    ),
-            ),
-            const SizedBox(width: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                if (filterProducts.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No products to export.')),
-                  );
-                } else {
-                  exportFilteredProductsToExcelWeb(filterProducts);
-                }
-              },
-              icon: const Icon(Icons.download),
-              label: const Text("Export Excel"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
+              Center(
+                child: isLoading
+                    ? const CircularProgressIndicator()
+                    : ElevatedButton.icon(
+                        onPressed: pickAndUploadExcel,
+                        icon: const Icon(Icons.upload_file),
+                        label: const Text('Import Excel File'),
+                      ),
               ),
-            ),
-          ],
+              const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  if (filterProducts.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('No products to export.')),
+                    );
+                  } else {
+                    exportFilteredProductsToExcelWeb(filterProducts);
+                  }
+                },
+                icon: const Icon(Icons.download),
+                label: const Text("Export Excel"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
         ),
         Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -400,7 +407,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   controller: searchController,
                   decoration: InputDecoration(
                     labelText: 'Search by ASIN or Barcode',
-                    prefixIcon: Icon(Icons.search),
+                    prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
@@ -503,7 +510,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               }).toList();
                               filterProducts = filteredProducts;
                               return filteredProducts.isEmpty
-                                  ? Center(
+                                  ? const Center(
                                       child: Text("No Products Found"),
                                     )
                                   : SingleChildScrollView(
