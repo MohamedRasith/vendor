@@ -42,6 +42,9 @@ class _AddOrderPageState extends State<AddOrderPage> {
   final TextEditingController requestedUnitsController = TextEditingController();
   final TextEditingController confirmedDetailsController = TextEditingController();
   final TextEditingController unitCostController = TextEditingController();
+  final LayerLink _asinLayerLink = LayerLink();
+  OverlayEntry? _asinOverlayEntry;
+  List<Map<String, dynamic>> asinSearchResults = [];
 
 
   @override
@@ -50,34 +53,102 @@ class _AddOrderPageState extends State<AddOrderPage> {
     fetchVendors();
     productNosController = TextEditingController(text: productNos.toString());
   }
-  void searchProducts(String query) async {
-    if (query.length < 3) {
-      setState(() {
-        productSuggestions = [];
-      });
-      overlayEntry?.remove(); // Close overlay
-      overlayEntry = null;
+  void fetchAsinSearch(String input) async {
+    if (input.length < 3) {
+      _asinOverlayEntry?.remove();
+      _asinOverlayEntry = null;
       return;
-    }
-
-    if(query.isEmpty){
-      setState(() {
-        productSuggestions = [];
-        overlayEntry?.remove();
-      });
     }
 
     final snapshot = await FirebaseFirestore.instance
         .collection('products')
-        .where('Brand', isGreaterThanOrEqualTo: query)
+        .where('keywords', arrayContains: input.toLowerCase()) // you must maintain this array in each product
+        .limit(5)
         .get();
 
+    asinSearchResults = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+    showAsinOverlay();
+  }
+  void showAsinOverlay() {
+    _asinOverlayEntry?.remove();
+
+    final overlayState = Overlay.of(context);
+    if (overlayState == null || !mounted || asinSearchResults.isEmpty) return;
+
+    _asinOverlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        width: 300,
+        child: CompositedTransformFollower(
+          link: _asinLayerLink,
+          offset: const Offset(0, 40),
+          showWhenUnlinked: false,
+          child: Material(
+            elevation: 4,
+            color: Colors.white,
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              itemCount: asinSearchResults.length,
+              itemBuilder: (context, index) {
+                final product = asinSearchResults[index];
+                return ListTile(
+                  dense: true,
+                  title: Text(product['Product Title'] ?? ''),
+                  subtitle: Text('ASIN: ${product['ASIN']} | Barcode: ${product['Barcode']}'),
+                  onTap: () {
+                    asinController.text = product['ASIN'] ?? '';
+                    barcodeController.text = product['Barcode'] ?? '';
+                    titleController.text = product['Product Title'] ?? '';
+                    unitCostController.text = product['RSP']?.toString() ?? '';
+                    requestedUnitsController.text = '1';
+                    confirmedDetailsController.text = '0';
+                    _asinOverlayEntry?.remove();
+                    _asinOverlayEntry = null;
+                    FocusScope.of(context).unfocus();
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlayState.insert(_asinOverlayEntry!);
+  }
+
+  void searchProducts(String query) async {
+    // Remove overlay and clear suggestions if query is too short or empty
+    if (query.isEmpty || query.length < 3) {
+      setState(() {
+        productSuggestions = [];
+      });
+      overlayEntry?.remove();
+      overlayEntry = null;
+      return;
+    }
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('products')
+        .limit(50) // Limit for performance
+        .get();
+
+    final results = snapshot.docs.where((doc) {
+      final data = doc.data();
+      final q = query.toLowerCase();
+      return (data['Brand']?.toString().toLowerCase().contains(q) ?? false) ||
+          (data['Product Title']?.toString().toLowerCase().contains(q) ?? false) ||
+          (data['ASIN']?.toString().toLowerCase().contains(q) ?? false) ||
+          (data['Barcode']?.toString().toLowerCase().contains(q) ?? false);
+    }).toList();
+
     setState(() {
-      productSuggestions = snapshot.docs;
+      productSuggestions = results;
     });
 
     showSuggestionsOverlay();
   }
+
 
   Future<void> pickFile(String type) async {
     final result = await FilePicker.platform.pickFiles(
@@ -104,7 +175,9 @@ class _AddOrderPageState extends State<AddOrderPage> {
 
   void addProductRow() async {
     if (asinController.text.isEmpty || titleController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("ASIN and Title are required")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("ASIN and Title are required")),
+      );
       return;
     }
 
@@ -123,7 +196,10 @@ class _AddOrderPageState extends State<AddOrderPage> {
     // First save to Firebase
     final docRef = await FirebaseFirestore.instance.collection('order_items').add(newRow);
 
-    // Then store the document ID separately in memory (not in Firestore)
+    // Now update the same document to include its ID
+    await docRef.update({'firebaseId': docRef.id});
+
+    // Add ID to local map
     final rowWithId = Map<String, dynamic>.from(newRow);
     rowWithId['firebaseId'] = docRef.id;
 
@@ -139,16 +215,23 @@ class _AddOrderPageState extends State<AddOrderPage> {
   }
 
 
-  void deleteProductRow(int index) async {
-    final firebaseId = productDetails[index]['firebaseId']; // Get ID before removal
 
-    // Remove from UI
+  void deleteProductRow(int index) async {
+    if (index < 0 || index >= productDetails.length) {
+      debugPrint("Invalid index: $index");
+      return;
+    }
+
+    final firebaseId = productDetails[index]['firebaseId'];
+
     setState(() {
       productDetails.removeAt(index);
     });
 
-    // Remove from Firestore
-    await FirebaseFirestore.instance.collection('order_items').doc(firebaseId).delete();
+    // Delete from Firestore only if firebaseId is not null
+    if (firebaseId != null) {
+      await FirebaseFirestore.instance.collection('order_items').doc(firebaseId).delete();
+    }
   }
 
 
@@ -194,6 +277,10 @@ class _AddOrderPageState extends State<AddOrderPage> {
                         title: Text(product['Brand']),
                         onTap: () {
                           productSearchController.text = product['Brand'];
+                          asinController.text = product['ASIN'] ?? '';
+                          barcodeController.text = product['Barcode'] ?? '';
+                          titleController.text = product['Product Title'] ?? '';
+                          unitCostController.text = product['RSP']?.toString() ?? '';
                           overlayEntry?.remove();
                           overlayEntry = null;
                         },
@@ -367,86 +454,6 @@ class _AddOrderPageState extends State<AddOrderPage> {
                             onChanged: (val) => setState(() => selectedLocation = val),
                             validator: (val) => val == null ? 'Required' : null,
                           ),
-                          CompositedTransformTarget(
-                            link: _layerLink,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8.0),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  const SizedBox(
-                                    width: 120,
-                                    child: Text("Product", style: TextStyle(fontWeight: FontWeight.w600)),
-                                  ),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: productSearchController,
-                                      decoration: const InputDecoration(
-                                        hintText: "Search Product",
-                                        border: OutlineInputBorder(),
-                                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                      ),
-                                      onChanged: searchProducts,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8.0),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                const SizedBox(
-                                  width: 120,
-                                  child: Text("Product Nos", style: TextStyle(fontWeight: FontWeight.w600)),
-                                ),
-                                Expanded(
-                                  child: Row(
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.remove),
-                                        onPressed: () {
-                                          if (productNos > 1) {
-                                            setState(() {
-                                              productNos--;
-                                              productNosController.text = productNos.toString();
-                                            });
-                                          }
-                                        },
-                                      ),
-                                      SizedBox(
-                                        width: 50,
-                                        child: TextFormField(
-                                          controller: productNosController,
-                                          textAlign: TextAlign.center,
-                                          keyboardType: TextInputType.number,
-                                          onChanged: (val) {
-                                            final num = int.tryParse(val);
-                                            if (num != null && num > 0) {
-                                              setState(() {
-                                                productNos = num;
-                                              });
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.add),
-                                        onPressed: () {
-                                          setState(() {
-                                            productNos++;
-                                            productNosController.text = productNos.toString();
-                                          });
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                           TextFormField(
                             controller: asnController,
                             decoration: const InputDecoration(labelText: 'ASN', border: OutlineInputBorder()),
@@ -460,12 +467,6 @@ class _AddOrderPageState extends State<AddOrderPage> {
                             DateFormat('yyyy-MM-dd – hh:mm a').format(appointmentDate!)),
                             trailing: const Icon(Icons.calendar_today),
                             onTap: selectAppointmentDate,
-                          ),
-                          ElevatedButton(
-                            onPressed: isLoading ? null : submitOrder,
-                            child: isLoading
-                                ? const CircularProgressIndicator(color: Colors.white)
-                                : const Text("Submit Order"),
                           ),
                         ],
                       ),
@@ -543,7 +544,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
                 ],
               ),
               const SizedBox(height: 20),
-              Text("Product Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const Text("Product Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
 
               DataTable(
                 columns: const [
@@ -560,36 +561,50 @@ class _AddOrderPageState extends State<AddOrderPage> {
                 rows: [
                   // Filled rows
                   ...productDetails.asMap().entries.map((entry) {
-                    final index = entry.key + 1;
+                    final index = entry.key; // ✅ Use the real index
                     final item = entry.value;
                     return DataRow(cells: [
-                      DataCell(Text(index.toString())),
-                      DataCell(Text(item['asin'])),
-                      DataCell(Text(item['barcode'])),
-                      DataCell(Text(item['title'])),
-                      DataCell(Text(item['requested'])),
-                      DataCell(Text(item['confirmed'])),
-                      DataCell(Text(item['unitCost'])),
-                      DataCell(Text(item['total'])),
+                      DataCell(Text((index + 1).toString())), // Show 1-based display only here
+                      DataCell(Text(item['asin'] ?? '')),
+                      DataCell(Text(item['barcode'] ?? '')),
+                      DataCell(Text(item['title'] ?? '')),
+                      DataCell(Text(item['requested'] ?? '')),
+                      DataCell(Text(item['confirmed'] ?? '')),
+                      DataCell(Text(item['unitCost'] ?? '')),
+                      DataCell(Text(item['total'] ?? '')),
                       DataCell(
                         IconButton(
                           icon: const Icon(Icons.remove_circle, color: Colors.red),
-                          onPressed: () => deleteProductRow(index),
+                          onPressed: () => deleteProductRow(index), // ✅ Use correct index
                         ),
-                      ), // Empty space
+                      ),
                     ]);
                   }).toList(),
-
                   // Input row
                   DataRow(
                     cells: [
                       DataCell(Text((productDetails.length + 1).toString())),
-                      DataCell(TextField(controller: asinController, decoration: InputDecoration(border: InputBorder.none))),
-                      DataCell(TextField(controller: barcodeController, decoration: InputDecoration(border: InputBorder.none))),
-                      DataCell(TextField(controller: titleController, decoration: InputDecoration(border: InputBorder.none))),
-                      DataCell(TextField(controller: requestedUnitsController, keyboardType: TextInputType.number, decoration: InputDecoration(border: InputBorder.none))),
-                      DataCell(TextField(controller: confirmedDetailsController, keyboardType: TextInputType.number, decoration: InputDecoration(border: InputBorder.none))),
-                      DataCell(TextField(controller: unitCostController, keyboardType: TextInputType.number, decoration: InputDecoration(border: InputBorder.none))),
+                      DataCell(
+                          CompositedTransformTarget(
+                            link: _layerLink,
+                            child: TextField(
+                              controller: asinController,
+                              decoration: const InputDecoration(border: InputBorder.none),
+                              onChanged: searchProducts,
+                            ),
+                          )
+                      ),
+                      DataCell(
+                          CompositedTransformTarget(
+                              link: _layerLink,
+                              child: TextField(controller: barcodeController, decoration: const InputDecoration(border: InputBorder.none),onChanged: searchProducts,))),
+                      DataCell(
+                          CompositedTransformTarget(
+                              link: _layerLink,
+                          child: TextField(controller: titleController, maxLines: 3,decoration: const InputDecoration(border: InputBorder.none),onChanged: searchProducts,))),
+                      DataCell(TextField(controller: requestedUnitsController, keyboardType: TextInputType.number, decoration: const InputDecoration(border: InputBorder.none))),
+                      DataCell(TextField(controller: confirmedDetailsController, keyboardType: TextInputType.number, decoration: const InputDecoration(border: InputBorder.none))),
+                      DataCell(TextField(controller: unitCostController, keyboardType: TextInputType.number, decoration: const InputDecoration(border: InputBorder.none))),
                       DataCell(Text(
                         calculateTotal().toStringAsFixed(2),
                       )),
@@ -603,7 +618,21 @@ class _AddOrderPageState extends State<AddOrderPage> {
                   ),
                 ],
               ),
-
+              const SizedBox(
+                height: 30,
+              ),
+              Center(
+                child: ElevatedButton(
+                  onPressed: isLoading ? null : submitOrder,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black, // Button background color
+                    foregroundColor: Colors.white, // Text & icon color
+                  ),
+                  child: isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text("Submit Order"),
+                ),
+              ),
             ],
           ),
         ),
