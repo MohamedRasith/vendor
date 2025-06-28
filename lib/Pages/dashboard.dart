@@ -369,10 +369,10 @@ class _DashboardPageState extends State<DashboardPage> {
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         return SingleChildScrollView(
+                          scrollDirection: Axis.vertical,
                           child: IntrinsicWidth(
                             child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                  minWidth: constraints.maxWidth),
+                              constraints: BoxConstraints(minWidth: constraints.maxWidth),
                               child: DataTable(
                                 columnSpacing: 20,
                                 dataRowMinHeight: 50,
@@ -380,37 +380,89 @@ class _DashboardPageState extends State<DashboardPage> {
                                 columns: const [
                                   DataColumn(label: Text('Amazon PO')),
                                   DataColumn(label: Text('BNB PO')),
+                                  DataColumn(label: Text('Status')),
                                   DataColumn(label: Text('Vendor')),
                                   DataColumn(label: Text('Delivery Location')),
                                   DataColumn(label: Text('ASN')),
                                   DataColumn(label: Text('Appointment ID')),
                                   DataColumn(label: Text('Appointment Date')),
+                                  DataColumn(label: Text('Product Details')), // New column
                                 ],
                                 rows: orders.map((order) {
                                   final Timestamp? ts = order['appointmentDate'];
                                   final String formattedDate = ts != null
-                                      ? DateFormat('yyyy-MM-dd hh:mm a')
-                                          .format(ts.toDate())
+                                      ? DateFormat('yyyy-MM-dd hh:mm a').format(ts.toDate())
                                       : '';
                                   return DataRow(cells: [
                                     DataCell(Text(order['amazonPONumber'] ?? '')),
                                     DataCell(Text(order['bnbPONumber'] ?? '')),
+                                    DataCell(
+                                      Text(
+                                        order['products'][0]['confirmed'] == ''?"Pending":"Confirmed",
+                                        style: TextStyle(
+                                          color: order['products'][0]['confirmed'] == ''
+                                              ? Colors.orange
+                                              : Colors.green,
+                                        ),)
+                                    ),
                                     DataCell(Text(order['vendor'] ?? '')),
                                     DataCell(Text(order['location'] ?? '')),
                                     DataCell(Text(order['asn'] ?? '')),
                                     DataCell(Text(order['appointmentId'] ?? '')),
                                     DataCell(Text(formattedDate)),
+                                    DataCell(
+                                      TextButton(
+                                        child: const Text("See Details"),
+                                        onPressed: () {
+                                          final List<dynamic> products = order['products'] ?? [];
+
+                                          showDialog(
+                                            context: context,
+                                            builder: (context) => AlertDialog(
+                                              title: const Text("Product Details"),
+                                              content: SizedBox(
+                                                width: double.maxFinite,
+                                                child: ListView.builder(
+                                                  shrinkWrap: true,
+                                                  itemCount: products.length,
+                                                  itemBuilder: (context, index) {
+                                                    final product = products[index];
+                                                    return ListTile(
+                                                      leading: Text("${index+1}"),
+                                                      title: Text(product['title'] ?? 'No Title', style: TextStyle(fontWeight: FontWeight.bold),),
+                                                      subtitle: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Text("ASIN: ${product['asin'] ?? ''}"),
+                                                          Text("Qty: ${product['boxCount'] ?? ''}"),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.of(context).pop(),
+                                                  child: const Text("Close"),
+                                                )
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
                                   ]);
                                 }).toList(),
                               ),
                             ),
                           ),
                         );
-                      }
+                      },
                     ),
                   ),
                 ),
-              ),
+              )
             ],
           );
         }

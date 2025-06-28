@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 class AddOrderPage extends StatefulWidget {
@@ -26,7 +27,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
   PlatformFile? appointmentFile;
   PlatformFile? bnbInvoiceFile;
 
-  List<String> vendors = ["Vendor A", "Vendor B", "Vendor C"];
+  List<String> vendors = [];
   List<String> locations = ["Dubai", "Abu Dhabi", "Sharjah"];
   List<DocumentSnapshot> productSuggestions = [];
   final TextEditingController productSearchController = TextEditingController();
@@ -55,7 +56,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
     productNosController = TextEditingController(text: productNos.toString());
   }
   void fetchAsinSearch(String input) async {
-    if (input.length < 3) {
+    if (input.length < 3 || selectedVendor == null) {
       _asinOverlayEntry?.remove();
       _asinOverlayEntry = null;
       return;
@@ -63,13 +64,15 @@ class _AddOrderPageState extends State<AddOrderPage> {
 
     final snapshot = await FirebaseFirestore.instance
         .collection('products')
-        .where('keywords', arrayContains: input.toLowerCase()) // you must maintain this array in each product
+        .where('Vendor ', isEqualTo: selectedVendor) // 🔥 Filter by selected vendor
+        .where('keywords', arrayContains: input.toLowerCase())
         .limit(5)
         .get();
 
     asinSearchResults = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
     showAsinOverlay();
   }
+
   void showAsinOverlay() {
     _asinOverlayEntry?.remove();
 
@@ -119,8 +122,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
   }
 
   void searchProducts(String query) async {
-    // Remove overlay and clear suggestions if query is too short or empty
-    if (query.isEmpty || query.length < 3) {
+    if (query.isEmpty || query.length < 3 || selectedVendor == null) {
       setState(() {
         productSuggestions = [];
       });
@@ -131,7 +133,8 @@ class _AddOrderPageState extends State<AddOrderPage> {
 
     final snapshot = await FirebaseFirestore.instance
         .collection('products')
-        .limit(50) // Limit for performance
+        .where('Vendor ', isEqualTo: selectedVendor) // 🔥 Filter by selected vendor
+        .limit(50)
         .get();
 
     final results = snapshot.docs.where((doc) {
@@ -149,6 +152,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
 
     showSuggestionsOverlay();
   }
+
 
 
   Future<void> pickFile(String type) async {
@@ -192,7 +196,6 @@ class _AddOrderPageState extends State<AddOrderPage> {
       'unitCost': unitCostController.text.trim(),
       'total': calculateTotal().toStringAsFixed(2),
       'orderId': poNumberController.text.trim(),
-      'createdAt': FieldValue.serverTimestamp(),
     };
 
     // First save to Firebase
@@ -210,7 +213,6 @@ class _AddOrderPageState extends State<AddOrderPage> {
       asinController.clear();
       barcodeController.clear();
       titleController.clear();
-      boxCountController.clear();
       requestedUnitsController.clear();
       confirmedDetailsController.clear();
       unitCostController.clear();
@@ -322,8 +324,18 @@ class _AddOrderPageState extends State<AddOrderPage> {
 
   Future<void> fetchVendors() async {
     final snapshot = await FirebaseFirestore.instance.collection('products').get();
+
+    final vendorSet = <String>{};
+
+    for (var doc in snapshot.docs) {
+      final vendor = doc.data()['Vendor'] ?? doc.data()['Vendor '] ?? '';
+      if (vendor is String && vendor.trim().isNotEmpty) {
+        vendorSet.add(vendor.trim());
+      }
+    }
+
     setState(() {
-      vendors = snapshot.docs.map((doc) => doc['Vendor '] as String).toList();
+      vendors = vendorSet.toList()..sort(); // Optional: sort alphabetically
     });
   }
 
@@ -348,6 +360,10 @@ class _AddOrderPageState extends State<AddOrderPage> {
   }
 
   void submitOrder() async {
+    if (overlayEntry?.mounted ?? false) {
+      overlayEntry?.remove();
+      overlayEntry = null;
+    }
     if (!_formKey.currentState!.validate() || appointmentDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please fill all required fields")),
@@ -369,6 +385,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
       'appointmentId': appointmentIdController.text.trim(),
       'appointmentDate': appointmentDate,
       'vendor': selectedVendor,
+      'products': productDetails,
       'location': selectedLocation,
       'createdAt': FieldValue.serverTimestamp(),
     };
@@ -384,6 +401,8 @@ class _AddOrderPageState extends State<AddOrderPage> {
       bnbPoNumberController.clear();
       asnController.clear();
       appointmentIdController.clear();
+      boxCountController.clear();
+      productDetails.clear();
       selectedVendor = null;
       selectedLocation = null;
       appointmentDate = null;
@@ -392,7 +411,10 @@ class _AddOrderPageState extends State<AddOrderPage> {
 
   @override
   void dispose() {
-    overlayEntry?.remove();
+    if (overlayEntry?.mounted ?? false) {
+      overlayEntry?.remove();
+    }
+    overlayEntry = null;
     productSearchController.dispose();
     poNumberController.dispose();
     bnbPoNumberController.dispose();
@@ -445,6 +467,15 @@ class _AddOrderPageState extends State<AddOrderPage> {
                               updateBNBPO(); // Manually trigger in case dropdown doesn't update controller immediately
                             },
                             validator: (val) => val == null ? 'Required' : null,
+                          ),
+                          TextFormField(
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            controller: boxCountController,
+                            decoration: const InputDecoration(labelText: 'No of Boxes', border: OutlineInputBorder()),
+                            validator: (val) => val!.isEmpty ? 'Required' : null,
                           ),
                           TextFormField(
                             controller: bnbPoNumberController,
