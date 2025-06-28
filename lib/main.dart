@@ -1,6 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:vendor/Pages/dashboard.dart';
+import 'package:admin/Pages/dashboard.dart';
 
 import 'firebase_options.dart';
 
@@ -19,7 +19,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Admin Dashboard',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         // This is the theme of your application.

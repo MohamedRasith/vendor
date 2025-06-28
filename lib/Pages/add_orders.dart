@@ -42,6 +42,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
   final TextEditingController requestedUnitsController = TextEditingController();
   final TextEditingController confirmedDetailsController = TextEditingController();
   final TextEditingController unitCostController = TextEditingController();
+  final TextEditingController boxCountController = TextEditingController();
   final LayerLink _asinLayerLink = LayerLink();
   OverlayEntry? _asinOverlayEntry;
   List<Map<String, dynamic>> asinSearchResults = [];
@@ -185,6 +186,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
       'asin': asinController.text.trim(),
       'barcode': barcodeController.text.trim(),
       'title': titleController.text.trim(),
+      'boxCount': boxCountController.text.trim(),
       'requested': requestedUnitsController.text.trim(),
       'confirmed': confirmedDetailsController.text.trim(),
       'unitCost': unitCostController.text.trim(),
@@ -208,6 +210,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
       asinController.clear();
       barcodeController.clear();
       titleController.clear();
+      boxCountController.clear();
       requestedUnitsController.clear();
       confirmedDetailsController.clear();
       unitCostController.clear();
@@ -360,6 +363,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
       'amazonPONumber': poNumberController.text.trim(),
       'bnbPONumber': bnbPoNumberController.text.trim(),
       'asn': asnController.text.trim(),
+      'boxCount': boxCountController.text.trim(),
       'productName': productSearchController.text.trim(),
       'productQuantity': productNos,
       'appointmentId': appointmentIdController.text.trim(),

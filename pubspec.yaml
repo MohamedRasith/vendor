@@ -1,4 +1,4 @@
-name: vendor
+name: admin
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -49,6 +49,7 @@ dependencies:
   permission_handler: ^12.0.0+1
   universal_html: ^2.2.4
   carousel_slider: ^5.1.1
+  syncfusion_flutter_xlsio: ^20.1.55
 
 dev_dependencies:
   flutter_test:

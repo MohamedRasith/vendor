@@ -4,12 +4,15 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:universal_html/html.dart' as html;
-import 'package:vendor/Pages/add_orders.dart';
-import 'package:vendor/Pages/add_products.dart';
+import 'package:admin/Pages/add_orders.dart';
+import 'package:admin/Pages/add_products.dart';
 import 'package:excel/excel.dart';
-import 'package:vendor/Pages/edit_products.dart';
+import 'package:admin/Pages/edit_products.dart';
+import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -28,6 +31,7 @@ class _DashboardPageState extends State<DashboardPage> {
   String searchQuery = '';
   List<String> selectedVendors = [];
   List<String> selectedBrands = [];
+  List<String> selectedProducts = [];
   List<QueryDocumentSnapshot> filterProducts = [];
   bool showFilter = false;
 
@@ -39,64 +43,123 @@ class _DashboardPageState extends State<DashboardPage> {
     Icons.store
   ];
 
+  String getVendorName(QueryDocumentSnapshot product) {
+    final data = product.data() as Map<String, dynamic>;
+
+    if (data.containsKey('Vendor') && data['Vendor'] != null) {
+      return data['Vendor'].toString();
+    } else if (data.containsKey('Vendor ') && data['Vendor '] != null) {
+      return data['Vendor '].toString();
+    } else {
+      return 'No Vendor';
+    }
+  }
+
   bool isLoading = false;
 
   Future<void> pickAndUploadExcel() async {
     setState(() => isLoading = true);
 
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: false,
-      type: FileType.custom,
-      allowedExtensions: ['xlsx'],
-    );
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: false,
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
 
-    if (result != null && result.files.single.bytes != null) {
+      if (result == null || result.files.single.bytes == null) {
+        setState(() => isLoading = false);
+        return;
+      }
+
       final bytes = result.files.single.bytes!;
-      final excel = Excel.decodeBytes(bytes);
+      Excel excel;
+
+      try {
+        excel = Excel.decodeBytes(bytes);
+      } catch (e) {
+        print('❌ Failed to decode Excel: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid Excel file.')),
+        );
+        setState(() => isLoading = false);
+        return;
+      }
 
       final sheet = excel.tables[excel.tables.keys.first];
-      if (sheet == null) return;
+      if (sheet == null || sheet.rows.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Excel sheet is empty or not found.')),
+        );
+        setState(() => isLoading = false);
+        return;
+      }
+
+      // Extract headers
+      final header = sheet.rows[0]
+          .map((cell) => (cell != null && cell.value != null) ? cell.value.toString() : '')
+          .toList();
 
       List<Map<String, dynamic>> products = [];
-      final header =
-          sheet.rows[0].map((cell) => cell?.value.toString() ?? '').toList();
 
+      // Extract each row
       for (int i = 1; i < sheet.rows.length; i++) {
         final row = sheet.rows[i];
-        Map<String, dynamic> product = {};
+        if (row == null) continue;
 
+        Map<String, dynamic> product = {};
         for (int j = 0; j < header.length; j++) {
           final key = header[j];
-          final cell = row[j];
-
-          // Convert the cell value to string or primitive type
+          final cell = j < row.length ? row[j] : null;
           final value = cell?.value;
 
-          if (value is String ||
-              value is num ||
-              value is bool ||
-              value == null) {
-            product[key] = value;
-          } else {
-            product[key] = value.toString(); // fallback to string
-          }
+          product[key] = (value is String || value is num || value is bool || value == null)
+              ? value
+              : value.toString(); // fallback
         }
 
         products.add(product);
       }
 
-      // Upload to Firestore
+      final collection = FirebaseFirestore.instance.collection('products');
+
       for (var product in products) {
+        final command = (product['Command']?.toString().trim() ?? 'New').toLowerCase();
+
         try {
-          await FirebaseFirestore.instance.collection('products').add(product);
+          if (command == 'new') {
+            await collection.add(product);
+          } else if (command == 'update') {
+            final asin = product['ASIN']?.toString();
+            if (asin != null && asin.isNotEmpty) {
+              final query = await collection.where('ASIN', isEqualTo: asin).get();
+              for (var doc in query.docs) {
+                await doc.reference.update(product);
+              }
+            } else {
+              print('❌ Missing ASIN for update');
+            }
+          } else if (command == 'delete') {
+            final docId = product['ID']?.toString().trim();
+            if (docId != null && docId.isNotEmpty) {
+              await collection.doc(docId).delete();
+              print('✅ Deleted document with ID: $docId');
+            } else {
+              print('❌ Missing or invalid document ID for delete');
+            }
+          }
         } catch (e) {
-          print('Error uploading product: $e');
+          print('❌ Error processing $command: $e');
         }
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Successfully imported ${products.length} products')),
+        SnackBar(content: Text('Successfully processed ${products.length} products')),
+      );
+    } catch (e) {
+      print('❌ Unexpected error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unexpected error occurred.')),
       );
     }
 
@@ -114,94 +177,108 @@ class _DashboardPageState extends State<DashboardPage> {
     return buffer.toString().trim();
   }
 
-  void exportFilteredProductsToExcelWeb(
-      List<QueryDocumentSnapshot> filteredProducts) {
-    final excel = Excel.createExcel();
-    final String oldSheetName = excel.getDefaultSheet()!;
-    excel.rename(oldSheetName, 'Products');
-    final sheet = excel['Products'];
+  void exportFilteredProductsToExcelWeb(List<QueryDocumentSnapshot> filteredProducts) {
+    final workbook = xlsio.Workbook();
+    final sheet = workbook.worksheets[0];
+    sheet.name = 'Products';
 
-    // Add headers
-    sheet.appendRow([
-      TextCellValue('Brand'),
-      TextCellValue('Product Title'),
-      TextCellValue('Barcode'),
-      TextCellValue('ASIN'),
-      TextCellValue('NIN'),
-      TextCellValue('Description'),
-      TextCellValue('Category'),
-      TextCellValue('Sub Category'),
-      TextCellValue('Feature 1'),
-      TextCellValue('Feature 2'),
-      TextCellValue('Feature 3'),
-      TextCellValue('Feature 4'),
-      TextCellValue('Image 1'),
-      TextCellValue('Image 2'),
-      TextCellValue('Image 3'),
-      TextCellValue('Image 4'),
-      TextCellValue('Image 5'),
-      TextCellValue('Weight KG'),
-      TextCellValue('Length CM'),
-      TextCellValue('Width CM'),
-      TextCellValue('Height CM'),
-      TextCellValue('Country of Origin'),
-      TextCellValue('HSN Code'),
-      TextCellValue('Vendor'),
-      TextCellValue('Purchase Price'),
-      TextCellValue('RSP'),
-    ]);
+    // Header row
+    final headers = [
+      'ID',
+      'Brand',
+      'Product Title',
+      'Barcode',
+      'ASIN',
+      'NIN',
+      'Description',
+      'Category',
+      'Sub Category',
+      'Feature 1',
+      'Feature 2',
+      'Feature 3',
+      'Feature 4',
+      'Image 1',
+      'Image 2',
+      'Image 3',
+      'Image 4',
+      'Image 5',
+      'Weight KG',
+      'Length CM',
+      'Width CM',
+      'Height CM',
+      'Country of Origin',
+      'HSN Code',
+      'Vendor',
+      'Purchase Price',
+      'RSP',
+      'Command', // this will have dropdown
+    ];
 
-
-    // Add product rows
-    for (var product in filteredProducts) {
-      sheet.appendRow([
-        TextCellValue(product['Brand']?.toString() ?? ''),
-        TextCellValue(product['Product Title']?.toString() ?? ''),
-        TextCellValue(product['Barcode']?.toString() ?? ''),
-        TextCellValue(product['ASIN']?.toString() ?? ''),
-        TextCellValue(product['NIN']?.toString() ?? ''),
-        TextCellValue(product['Description']?.toString() ?? ''),
-        TextCellValue(product['Category']?.toString() ?? ''),
-        TextCellValue(product['Sub Category']?.toString() ?? ''),
-        TextCellValue(product['Feature 1']?.toString() ?? ''),
-        TextCellValue(product['Feature 2']?.toString() ?? ''),
-        TextCellValue(product['Feature 3']?.toString() ?? ''),
-        TextCellValue(product['Feature 4']?.toString() ?? ''),
-        TextCellValue(product['Image 1']?.toString() ?? ''),
-        TextCellValue(product['Image 2']?.toString() ?? ''),
-        TextCellValue(product['Image 3']?.toString() ?? ''),
-        TextCellValue(product['Image 4']?.toString() ?? ''),
-        TextCellValue(product['Image 5']?.toString() ?? ''),
-        TextCellValue(product['Weight KG']?.toString() ?? ''),
-        TextCellValue(product['Length CM']?.toString() ?? ''),
-        TextCellValue(product['Width CM']?.toString() ?? ''),
-        TextCellValue(product['Height CM']?.toString() ?? ''),
-        TextCellValue(product['Country of Origin']?.toString() ?? ''),
-        TextCellValue(product['HSN Code']?.toString() ?? ''),
-        TextCellValue(product['Vendor ']?.toString() ?? ''),
-        TextCellValue(product['Purchase Price']?.toString() ?? ''),
-        TextCellValue(product['RSP']?.toString() ?? ''),
-      ]);
+    for (int i = 0; i < headers.length; i++) {
+      sheet.getRangeByIndex(1, i + 1).setText(headers[i]);
     }
 
+    // Product rows
+    for (int i = 0; i < filteredProducts.length; i++) {
+      final product = filteredProducts[i];
+      final rowIndex = i + 2;
 
-    // Convert to bytes
-    final List<int>? bytes = excel.encode();
-    if (bytes == null) return;
+      final values = [
+        product.id.toString() ?? "",
+        product['Brand']?.toString() ?? '',
+        product['Product Title']?.toString() ?? '',
+        product['Barcode']?.toString() ?? '',
+        product['ASIN']?.toString() ?? '',
+        product['NIN']?.toString() ?? '',
+        product['Description']?.toString() ?? '',
+        product['Category']?.toString() ?? '',
+        product['Sub Category']?.toString() ?? '',
+        product['Feature 1']?.toString() ?? '',
+        product['Feature 2']?.toString() ?? '',
+        product['Feature 3']?.toString() ?? '',
+        product['Feature 4']?.toString() ?? '',
+        product['Image 1']?.toString() ?? '',
+        product['Image 2']?.toString() ?? '',
+        product['Image 3']?.toString() ?? '',
+        product['Image 4']?.toString() ?? '',
+        product['Image 5']?.toString() ?? '',
+        product['Weight KG']?.toString() ?? '',
+        product['Length CM']?.toString() ?? '',
+        product['Width CM']?.toString() ?? '',
+        product['Height CM']?.toString() ?? '',
+        product['Country of Origin']?.toString() ?? '',
+        product['HSN Code']?.toString() ?? '',
+        getVendorName(product),
+        product['Purchase Price']?.toString() ?? '',
+        product['RSP']?.toString() ?? '',
+        'New', // Default value for dropdown
+      ];
 
-    // Convert to Blob for web
-    final content = Uint8List.fromList(bytes);
-    final blob = html.Blob([content]);
+      for (int j = 0; j < values.length; j++) {
+        sheet.getRangeByIndex(rowIndex, j + 1).setText(values[j]);
+      }
+    }
+
+    // ✅ Apply dropdown (data validation) to "Command" column
+    final commandColumn = headers.indexOf('Command') + 1;
+    final range = sheet.getRangeByName('AB2:AB${filteredProducts.length + 1}');
+    final dropdown = range.dataValidation;
+    dropdown.listOfValues = ['New', 'Update', 'Delete'];
+
+    // Save and trigger download (web)
+    final bytes = workbook.saveAsStream();
+    if (!kIsWeb) {
+      workbook.dispose(); // Safe to dispose on mobile or desktop
+    }
+
+    final blob = html.Blob([Uint8List.fromList(bytes)], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     final url = html.Url.createObjectUrlFromBlob(blob);
-
-    // Trigger download
     final anchor = html.AnchorElement(href: url)
       ..setAttribute('download', 'products_export.xlsx')
       ..click();
-
-    // Cleanup
     html.Url.revokeObjectUrl(url);
   }
+
 
   Widget getOrdersPageContent() {
     return StreamBuilder<QuerySnapshot>(
@@ -406,7 +483,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 child: TextField(
                   controller: searchController,
                   decoration: InputDecoration(
-                    labelText: 'Search by ASIN or Barcode',
+                    labelText: 'Search Products (min 3 chars)',
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10)),
@@ -481,6 +558,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                 final brand = (product['Brand'] ?? '')
                                     .toString()
                                     .toLowerCase();
+                                final productTitle = (product['Product Title'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
                                 final asin = (product['ASIN'] ?? '')
                                     .toString()
                                     .toLowerCase();
@@ -488,9 +568,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                     .toString()
                                     .toLowerCase();
                                 final vendor =
-                                    (product['Vendor '] ?? '').toString();
+                                    getVendorName(product);
 
                                 final matchesSearch = searchQuery.isEmpty ||
+                                    productTitle.contains(searchQuery.toLowerCase()) ||
                                     brand.contains(searchQuery.toLowerCase()) ||
                                     asin.contains(searchQuery.toLowerCase()) ||
                                     barcode
@@ -537,97 +618,192 @@ class _DashboardPageState extends State<DashboardPage> {
                                             ],
                                             rows:
                                                 filteredProducts.map((product) {
+                                                  final imageCount = List.generate(5, (i) {
+                                                    final key = 'Image ${i + 1}';
+                                                    final value = product[key];
+                                                    return value != null && value is String && value.isNotEmpty;
+                                                  }).where((isValid) => isValid).length;
                                               return DataRow(cells: [
                                                 DataCell(Row(
                                                   crossAxisAlignment:
                                                       CrossAxisAlignment.center,
                                                   children: [
-                                                    product['Image 1'] !=
-                                                                null &&
-                                                            product['Image 1']
-                                                                .isNotEmpty
-                                                        ? ClipRRect(
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        8),
-                                                            child:
-                                                                Image.network(
-                                                              product[
-                                                                  'Image 1'],
-                                                              width: 50,
-                                                              height: 50,
-                                                              fit: BoxFit.cover,
-                                                            ),
+                                                    Stack(
+                                                      alignment: Alignment.topRight,
+                                                      children: [
+                                                        ClipRRect(
+                                                          borderRadius: BorderRadius.circular(8),
+                                                          child: product['Image 1'] != null && product['Image 1'] is String && product['Image 1'].isNotEmpty
+                                                              ? Image.network(
+                                                            product['Image 1'],
+                                                            width: 50,
+                                                            height: 50,
+                                                            fit: BoxFit.cover,
+                                                            errorBuilder: (context, error, stackTrace) {
+                                                              return Container(
+                                                                width: 50,
+                                                                height: 50,
+                                                                color: Colors.grey[200],
+                                                                alignment: Alignment.center,
+                                                                child: const Icon(Icons.broken_image, size: 24),
+                                                              );
+                                                            },
                                                           )
-                                                        : Container(
-                                                            width: 30,
-                                                            height: 30,
-                                                            decoration:
-                                                                BoxDecoration(
-                                                              color: Colors
-                                                                  .grey[300],
-                                                              borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                          8),
-                                                            ),
-                                                            child: const Icon(
-                                                                Icons
-                                                                    .image_not_supported,
-                                                                size: 16),
+                                                              : Container(
+                                                            width: 50,
+                                                            height: 50,
+                                                            color: Colors.grey[200],
+                                                            alignment: Alignment.center,
+                                                            child: const Icon(Icons.image_not_supported, size: 24),
                                                           ),
+                                                        ),
+                                                        // Badge
+                                                        Positioned(
+                                                          top: 2,
+                                                          right: 2,
+                                                          child: Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                                            decoration: BoxDecoration(
+                                                              color: Colors.red,
+                                                              borderRadius: BorderRadius.circular(10),
+                                                            ),
+                                                            child: Text(
+                                                              imageCount > 0 ? '$imageCount' : '0',
+                                                              style: const TextStyle(
+                                                                color: Colors.white,
+                                                                fontSize: 10,
+                                                                fontWeight: FontWeight.bold,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
                                                     const SizedBox(width: 8),
                                                     Flexible(
                                                       child: MouseRegion(
-                                                        cursor:
-                                                            SystemMouseCursors
-                                                                .click,
-                                                        child: GestureDetector(
-                                                          onTap: () {
-                                                            Navigator.push(
-                                                              context,
-                                                              MaterialPageRoute(
-                                                                builder: (_) =>
-                                                                    EditProductPage(
-                                                                        product:
-                                                                            product),
+                                                        cursor: SystemMouseCursors.click,
+                                                        child: Row(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          children: [
+                                                            // Brand Text (Navigates to EditProductPage)
+                                                            Expanded(
+                                                              child: GestureDetector(
+                                                                onTap: () {
+                                                                  Navigator.push(
+                                                                    context,
+                                                                    MaterialPageRoute(
+                                                                      builder: (_) => EditProductPage(product: product),
+                                                                    ),
+                                                                  );
+                                                                },
+                                                                child: Text(
+                                                                  _wrapBrandText(product['Product Title'] ?? 'No Name'),
+                                                                  maxLines: 5,
+                                                                  softWrap: true,
+                                                                  overflow: TextOverflow.ellipsis,
+                                                                  style: const TextStyle(
+                                                                    color: Colors.blue,
+                                                                    fontWeight: FontWeight.w500,
+                                                                  ),
+                                                                ),
                                                               ),
-                                                            );
-                                                          },
-                                                          child: Text(
-                                                            _wrapBrandText(
-                                                                product['Brand'] ??
-                                                                    'No Name'),
-                                                            maxLines: 5,
-                                                            softWrap: true,
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                            style:
-                                                                const TextStyle(
-                                                              color:
-                                                                  Colors.blue,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w500,
                                                             ),
-                                                          ),
+
+                                                            const SizedBox(width: 4),
+
+                                                            // Copy Icon with Tooltip
+                                                            Tooltip(
+                                                              message: 'Copy Product Title',
+                                                              child: InkWell(
+                                                                onTap: () {
+                                                                  Clipboard.setData(
+                                                                    ClipboardData(text: product['Product Title'] ?? ''),
+                                                                  );
+                                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                                    const SnackBar(content: Text('Product Title copied')),
+                                                                  );
+                                                                },
+                                                                child: const Icon(Icons.copy, size: 16, color: Colors.grey),
+                                                              ),
+                                                            ),
+                                                          ],
                                                         ),
                                                       ),
                                                     ),
                                                   ],
                                                 )),
-                                                DataCell(Text(
-                                                    product['ASIN'] ?? '')),
-                                                DataCell(Text(
-                                                    product['Barcode'] ?? '')),
-                                                DataCell(Text(
-                                                    'AED ${product['Purchase Price'] ?? '0.00'}')),
-                                                DataCell(Text(
-                                                    'AED ${product['RSP'] ?? '0.00'}')),
-                                                DataCell(Text(
-                                                    product['Vendor '] ?? '')),
+                                                DataCell(Tooltip(
+                                                  message: 'Click to copy ASIN',
+                                                  child: InkWell(
+                                                    onTap: () {
+                                                      Clipboard.setData(ClipboardData(text: product['ASIN'] ?? ''));
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        const SnackBar(content: Text('ASIN copied')),
+                                                      );
+                                                    },
+                                                    child: Text(product['ASIN'] ?? ''),
+                                                  ),
+                                                ),),
+                                                DataCell(Tooltip(
+                                                  message: 'Click to copy Barcode',
+                                                  child: InkWell(
+                                                    onTap: () {
+                                                      Clipboard.setData(ClipboardData(text: product['Barcode'] ?? ''));
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        const SnackBar(content: Text('Barcode copied')),
+                                                      );
+                                                    },
+                                                    child: Text(product['Barcode'] ?? ''),
+                                                  ),
+                                                ),),
+                                                DataCell(
+                                                  Tooltip(
+                                                    message: 'Click to copy Purchase Price',
+                                                    child: InkWell(
+                                                      onTap: () {
+                                                        Clipboard.setData(
+                                                          ClipboardData(text: 'AED ${product['Purchase Price'] ?? '0.00'}'),
+                                                        );
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          const SnackBar(content: Text('Purchase Price copied')),
+                                                        );
+                                                      },
+                                                      child: Text('AED ${product['Purchase Price'] ?? '0.00'}'),
+                                                    ),
+                                                  ),
+                                                ),
+                                                DataCell(
+                                                  Tooltip(
+                                                    message: 'Click to copy RSP',
+                                                    child: InkWell(
+                                                      onTap: () {
+                                                        Clipboard.setData(
+                                                          ClipboardData(text: 'AED ${product['RSP'] ?? '0.00'}'),
+                                                        );
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          const SnackBar(content: Text('RSP copied')),
+                                                        );
+                                                      },
+                                                      child: Text('AED ${product['RSP'] ?? '0.00'}'),
+                                                    ),
+                                                  ),
+                                                ),
+                                                DataCell(
+                                                  Tooltip(
+                                                    message: 'Click to copy Vendor',
+                                                    child: InkWell(
+                                                      onTap: () {
+                                                        final vendorName = getVendorName(product);
+                                                        Clipboard.setData(ClipboardData(text: vendorName));
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          const SnackBar(content: Text('Vendor copied')),
+                                                        );
+                                                      },
+                                                      child: Text(getVendorName(product)),
+                                                    ),
+                                                  ),
+                                                ),
                                               ]);
                                             }).toList(),
                                           ),

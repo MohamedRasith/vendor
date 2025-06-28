@@ -21,6 +21,7 @@ class _EditProductPageState extends State<EditProductPage> {
   final _formKey = GlobalKey<FormState>();
 
   late TextEditingController brandController;
+  late TextEditingController titleController;
   late TextEditingController categoryController;
   late TextEditingController subCategoryController;
   late TextEditingController originController;
@@ -51,6 +52,17 @@ class _EditProductPageState extends State<EditProductPage> {
   int _currentImageIndex = 0;
   Map<String, String?> originalImageUrls = {};
 
+  String getVendorName(DocumentSnapshot product) {
+    final data = product.data() as Map<String, dynamic>;
+
+    if (data.containsKey('Vendor') && data['Vendor'] != null) {
+      return data['Vendor'].toString();
+    } else if (data.containsKey('Vendor ') && data['Vendor '] != null) {
+      return data['Vendor '].toString();
+    } else {
+      return 'No Vendor';
+    }
+  }
 
   @override
   void initState() {
@@ -63,13 +75,14 @@ class _EditProductPageState extends State<EditProductPage> {
       originalImageUrls[key] = url;
     }
     brandController = TextEditingController(text: widget.product['Brand'] ?? '');
+    titleController = TextEditingController(text: widget.product['Product Title'] ?? '');
     categoryController = TextEditingController(text: widget.product['Category'] ?? '');
     subCategoryController = TextEditingController(text: widget.product['Sub Category'] ?? '');
     originController = TextEditingController(text: widget.product['Country of Origin'] ?? '');
     priceController = TextEditingController(text: widget.product['RSP']?.toString() ?? '');
     asinController = TextEditingController(text: widget.product['ASIN'] ?? '');
     ninController = TextEditingController(text: widget.product['NIN'] ?? '');
-    vendorController = TextEditingController(text: widget.product['Vendor '] ?? '');
+    vendorController = TextEditingController(text: getVendorName(widget.product));
     barcodeController = TextEditingController(text: widget.product['Barcode'] ?? '');
     descriptionController = TextEditingController(text: widget.product['Description'] ?? '');
     feature1Controller = TextEditingController(text: widget.product['Feature 1'] ?? '');
@@ -171,6 +184,7 @@ class _EditProductPageState extends State<EditProductPage> {
 
     Map<String, dynamic> updateData = {
       'Brand': brandController.text.trim(),
+      'Product Title': titleController.text.trim(),
       'Category': categoryController.text.trim(),
       'Sub Category': subCategoryController.text.trim(),
       'Country of Origin': originController.text.trim(),
@@ -229,51 +243,8 @@ class _EditProductPageState extends State<EditProductPage> {
             child: Wrap(
               runSpacing: 12,
               children: [
-            if (imageUrls.values.any((url) => url != null && url.isNotEmpty))
-              CarouselSlider.builder(
-                itemCount: imageUrls.entries
-                    .where((e) => e.value != null && e.value!.isNotEmpty)
-                    .length,
-                itemBuilder: (context, index, realIndex) {
-                  final filteredEntries = imageUrls.entries
-                      .where((e) => e.value != null && e.value!.isNotEmpty)
-                      .toList();
-                  final entry = filteredEntries[index];
-
-                  return Container(
-                    width: 300, // Set your desired width
-                    margin: const EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: Colors.grey[200],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        entry.value!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
-                      ),
-                    ),
-                  );
-                },
-                options: CarouselOptions(
-                  height: 300, // Total height of the carousel (including image + dots)
-                  enlargeCenterPage: true,
-                  enableInfiniteScroll: false,
-                  viewportFraction: 0.7,
-                  autoPlay: false,
-                  onPageChanged: (index, reason) {
-                    setState(() {
-                      _currentImageIndex = index;
-                    });
-                  },
-                ),
-              )
-    else
-    const Center(child: Text('No Images')),
-
-                TextFormField(controller: brandController, decoration: const InputDecoration(labelText: 'Product Name'), validator: (val) => val!.isEmpty ? 'Required' : null),
+                TextFormField(controller: brandController, decoration: const InputDecoration(labelText: 'Brand'), validator: (val) => val!.isEmpty ? 'Required' : null),
+                TextFormField(controller: titleController, decoration: const InputDecoration(labelText: 'Product Title'), validator: (val) => val!.isEmpty ? 'Required' : null),
                 TextFormField(controller: categoryController, decoration: const InputDecoration(labelText: 'Category')),
                 TextFormField(controller: subCategoryController, decoration: const InputDecoration(labelText: 'Sub Category')),
                 TextFormField(controller: originController, decoration: const InputDecoration(labelText: 'Country of Origin')),
@@ -299,24 +270,66 @@ class _EditProductPageState extends State<EditProductPage> {
                   children: List.generate(5, (i) {
                     final key = 'Image ${i + 1}';
                     final url = imageUrls[key];
+                    final hasImage = url != null && url.isNotEmpty;
                     return GestureDetector(
-                      onTap: () async {
-                        setState(() => isUploadingImage[key] = true);
-                        await _pickAndUploadImage(key);
-                        setState(() => isUploadingImage[key] = false);
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: Text('Preview $key'),
+                            backgroundColor: Colors.white,
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (url != null && url.isNotEmpty)
+                                  Image.network(url, height: 200, fit: BoxFit.cover)
+                                else
+                                  Container(
+                                    height: 200,
+                                    width: double.infinity,
+                                    alignment: Alignment.center,
+                                    color: Colors.grey[200],
+                                    child: const Icon(Icons.image_not_supported, size: 50),
+                                  ),
+                                const SizedBox(height: 20),
+                                ElevatedButton.icon(
+                                  label: Text( hasImage ? 'Change Image' : 'Add Image', style: TextStyle(color: Colors.white),),
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                                  onPressed: () async {
+                                    Navigator.pop(context); // Close dialog first
+                                    setState(() => isUploadingImage[key] = true);
+                                    await _pickAndUploadImage(key);
+                                    setState(() => isUploadingImage[key] = false);
+                                  },
+                                ),
+                                const SizedBox(height: 10),
+                                IconButton(onPressed: () => Navigator.pop(context), icon: Icon(Icons.close))
+                              ],
+                            ),
+                          ),
+                        );
                       },
-                      child: CircleAvatar(
-                        radius: 35,
-                        backgroundImage: (url != null && url.isNotEmpty)
-                            ? NetworkImage(url)
-                            : null,
-                        backgroundColor: Colors.grey[300],
+                      child: Container(
+                        width: 70,
+                        height: 70,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(12), // curved corners
+                          border: Border.all(color: Colors.grey.shade600, width: 1.5), // border
+                          image: (url != null && url.isNotEmpty)
+                              ? DecorationImage(
+                            image: NetworkImage(url),
+                            fit: BoxFit.cover,
+                          )
+                              : null,
+                        ),
                         child: isUploadingImage[key] == true
-                            ? const CircularProgressIndicator()
+                            ? const Center(child: CircularProgressIndicator())
                             : (url == null || url.isEmpty)
-                            ? const Icon(Icons.add_a_photo)
+                            ? const Center(child: Icon(Icons.add_a_photo, color: Colors.grey))
                             : null,
                       ),
+
                     );
                   }),
                 ),
