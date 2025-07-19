@@ -79,12 +79,12 @@ class _ProductsListState extends State<ProductsList> {
                       title: Text(product.name),
                       subtitle: Text(product.description),
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ProductDetailPage(productData: product, productId: product.id),
-                          ),
-                        );
+                        // Navigator.push(
+                        //   context,
+                        //   MaterialPageRoute(
+                        //     builder: (context) => ProductDetailPage(productData: product, productId: product.id),
+                        //   ),
+                        // );
                       },
                     ),
                   );

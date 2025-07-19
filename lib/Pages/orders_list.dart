@@ -56,28 +56,36 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     child: DataTable(
                       headingRowColor: MaterialStateProperty.all(Colors.grey[200]),
                       columns: const [
-                        DataColumn(label: Text('PO')),
-                        DataColumn(label: Text('Vendor')),
-                        DataColumn(label: Text('Created')),
+                        DataColumn(label: Text('PO Number')),
+                        DataColumn(label: Text('PO Date')),
+                        DataColumn(label: Text('Appointment ID')),
+                        DataColumn(label: Text('Appointment Date')),
                         DataColumn(label: Text('Status')),
                         DataColumn(label: Text('Actions')),
                       ],
                       rows: orders.map((order) {
                         final data = order.data() as Map<String, dynamic>;
                         final products = data['products'] as List<dynamic>;
-                        final allConfirmed = products.every((p) => (p['confirmed'] ?? 0) > 0);
                         return DataRow(
                           cells: [
                             DataCell(Text(data['amazonPONumber'] ?? '')),
-                            DataCell(Text(data['vendor'] ?? '')),
                             DataCell(Text(
                               DateFormat("dd MMM hh:mm a").format(data['createdAt'].toDate()),
                               overflow: TextOverflow.ellipsis,
                             )),
+                            DataCell(Text(data['appointmentId'] ?? '')),
                             DataCell(
                               Text(
-                                allConfirmed ? 'Confirmed' : 'Pending',
-                                style: TextStyle(color: allConfirmed ? Colors.green : Colors.orange),
+                                (data['appointmentDate'] is Timestamp)
+                                    ? DateFormat("dd MMM hh:mm a").format(data['appointmentDate'].toDate())
+                                    : 'N/A',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            DataCell(
+                              Text(
+                                data['status'],
+                                style: TextStyle(color: Colors.blue),
                               ),
                             ),
                             DataCell(

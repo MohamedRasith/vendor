@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vendor/Pages/login_page.dart';
 import 'package:vendor/Pages/orders_list.dart';
+import 'package:vendor/Pages/product_dashboard.dart';
 import 'package:vendor/Pages/profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -14,13 +16,28 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int selectedIndex = 0;
 
-  final List<String> menuItems = ["Home", "Orders", "My Profile"];
+  final List<String> menuItems = ["Orders", "Products", "My Profile"];
 
-  final List<Widget> screens = const [
-    Center(child: Text("Home Screen", style: TextStyle(fontSize: 24))),
-    OrdersScreen(),
-    MyProfileScreen()
-  ];
+   List<Widget> screens = [];
+
+  @override
+  void initState() {
+    super.initState();
+    loadVendorName();
+  }
+
+  Future<void> loadVendorName() async {
+    final prefs = await SharedPreferences.getInstance();
+    final vendorName = prefs.getString('vendorName') ?? 'Unknown Vendor';
+
+    setState(() {
+      screens = [
+        const OrdersScreen(),
+        ProductsListScreen(vendorName: vendorName),
+        const MyProfileScreen(),
+      ];
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
