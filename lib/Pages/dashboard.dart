@@ -5,6 +5,7 @@ import 'package:vendor/Pages/login_page.dart';
 import 'package:vendor/Pages/orders_list.dart';
 import 'package:vendor/Pages/product_dashboard.dart';
 import 'package:vendor/Pages/profile_screen.dart';
+import 'package:vendor/Pages/vendor_tickets_page.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -16,7 +17,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int selectedIndex = 0;
 
-  final List<String> menuItems = ["Orders", "Products", "My Profile"];
+  final List<String> menuItems = ["Orders", "Products", "My Profile", "Queries?"];
 
    List<Widget> screens = [];
 
@@ -35,6 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const OrdersScreen(),
         ProductsListScreen(vendorName: vendorName),
         const MyProfileScreen(),
+        VendorTicketList(vendorName: vendorName,)
       ];
     });
   }
@@ -105,6 +107,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
           BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: "Orders"),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+          BottomNavigationBarItem(icon: Icon(Icons.message), label: "Queries?"),
         ],
       )
           : null,

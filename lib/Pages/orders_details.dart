@@ -578,56 +578,6 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
   }
 
 
-  Future<void> uploadToAmazon() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx'],
-    );
-
-    if (result == null || result.files.isEmpty) {
-      // User canceled or no file selected
-      return;
-    }
-
-    final file = result.files.first;
-    final fileBytes = file.bytes;
-    final fileName = file.name;
-
-    if (fileBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Failed to read file.")),
-      );
-      return;
-    }
-
-    try {
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('upload_to_amazon_files/${widget.order.id}/$fileName');
-
-      // Upload file bytes
-      final uploadTask = await storageRef.putData(fileBytes);
-
-      // Get download URL
-      final downloadUrl = await storageRef.getDownloadURL();
-
-      // Save download URL to Firestore order document
-      await FirebaseFirestore.instance
-          .collection('orders')
-          .doc(widget.order.id)
-          .update({'uploadToAmazon': downloadUrl, 'status': 'Completed'});
-
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("File uploaded and link saved successfully.")),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Upload failed: $e")),
-      );
-    }
-  }
-
   Future<void> exportOrderToExcel(List products, var order) async {
     final workbook = xlsio.Workbook();
     final sheet = workbook.worksheets[0];
@@ -975,32 +925,6 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                   ),
                   const SizedBox(width: 12),
-                  widget.order['uploadToAmazon'] != ""?
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: InkWell(
-                      onTap: () async {
-                        final url = widget.order['uploadToAmazon'];
-                        html.window.open(url, '_blank');
-                      },
-                      child: const Text(
-                        "View Proof of Delivery",
-                        style: TextStyle(
-                          color: Colors.blue,
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ),
-                  )
-                      :ElevatedButton.icon(
-                    onPressed: uploadToAmazon,
-                    icon: const Icon(Icons.upload_file, color: Colors.white),
-                    label: const Text("Upload to Amazon", style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                  ),
-                  const SizedBox(
-                    width: 10,
-                  ),
                   widget.order['proofOfDeliveryUrl'] != ""?
                   Padding(
                     padding: const EdgeInsets.only(top: 8.0),
