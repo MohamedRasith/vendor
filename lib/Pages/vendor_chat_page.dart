@@ -14,6 +14,7 @@ class VendorChatPage extends StatefulWidget {
 class _VendorChatPageState extends State<VendorChatPage> {
   final TextEditingController _messageController = TextEditingController();
   bool _isSending = false;
+  String _status = 'pending';
 
 
   Stream<QuerySnapshot> getMessages() {
@@ -49,15 +50,51 @@ class _VendorChatPageState extends State<VendorChatPage> {
     }
   }
 
+  @override
+  void initState() {
+    super.initState();
+    fetchTicketStatus();
+  }
+
+  void fetchTicketStatus() async {
+    final doc = await FirebaseFirestore.instance
+        .collection('tickets')
+        .doc(widget.ticketId)
+        .get();
+
+    if (doc.exists && doc.data() != null) {
+      setState(() {
+        _status = doc['status'] ?? 'pending';
+      });
+    }
+  }
+  Future<void> updateStatus(String newStatus) async {
+    await FirebaseFirestore.instance
+        .collection('tickets')
+        .doc(widget.ticketId)
+        .update({'status': newStatus});
+
+    setState(() {
+      _status = newStatus;
+    });
+  }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-          backgroundColor: Colors.black,
-          iconTheme: IconThemeData(color: Colors.white),
-          title: Text("Chat - ${widget.ticketTitle}", style: TextStyle(color: Colors.white),)),
+        backgroundColor: Colors.black,
+        iconTheme: IconThemeData(color: Colors.white),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Chat - ${widget.ticketTitle}", style: TextStyle(color: Colors.white)),
+            Text("Status: ${_status.toUpperCase() == "OPEN"?"Pending":_status}", style: TextStyle(fontSize: 12, color: Colors.white70)),
+          ],
+        ),
+      ),
       body: Column(
         children: [
           Expanded(
@@ -118,6 +155,56 @@ class _VendorChatPageState extends State<VendorChatPage> {
           ),
         ],
       ),
+      floatingActionButton: Align(
+        alignment: Alignment.bottomRight,
+        child: Container(
+          margin: const EdgeInsets.only(right: 16, bottom: 45),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              popupMenuTheme: PopupMenuThemeData(
+                color: Colors.black,
+                textStyle: TextStyle(color: Colors.white),
+              ),
+            ),
+            child: PopupMenuButton<String>(
+              offset: Offset(0, -100), // show menu upward
+              color: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              onSelected: (value) => updateStatus(value),
+              itemBuilder: (context) => [
+                if (_status != 'on process')
+                  PopupMenuItem(
+                    value: 'on process',
+                    child: Text('Mark as On Process', style: TextStyle(color: Colors.white)),
+                  ),
+                if (_status != 'completed')
+                  PopupMenuItem(
+                    value: 'completed',
+                    child: Text('Mark as Completed', style: TextStyle(color: Colors.white)),
+                  ),
+              ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.settings, color: Colors.white),
+                  Text(
+                    "Click here\nto update status",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+
+
     );
   }
 }

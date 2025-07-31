@@ -43,8 +43,10 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     asnController = TextEditingController(text: data['asn'] ?? '');
     bnbPONumberController = TextEditingController(text: data['bnbPONumber'] ?? '');
     locationController = TextEditingController(text: data['location'] ?? '');
+    appointmentDate = data['appointmentDate'] is Timestamp
+        ? data['appointmentDate'].toDate()
+        : DateTime.tryParse(data['appointmentDate'] ?? '');
     vendorController = TextEditingController(text: data['vendor'] ?? '');
-    appointmentDate = data['appointmentDate']?.toDate();
     boxesController = TextEditingController(text: data['boxCount']?.toString() ?? '');
 
     products = (data['products'] as List<dynamic>).map((e) => Map<String, dynamic>.from(e)).toList();
@@ -277,7 +279,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                     ),
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text(p['unitCost'].toString()),
+                      child: pw.Text(p['unitCost'].toStringAsFixed(2)),
                     ),
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(8),
@@ -285,7 +287,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                     ),
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text(p['total'].toString()),
+                      child: pw.Text(p['total'].toStringAsFixed(2)),
                     ),
                   ],
                 );
@@ -308,7 +310,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                     ),
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text('AED ${subtotal.round()}'),
+                      child: pw.Text('AED ${subtotal.toStringAsFixed(2)}'),
                     ),
                   ]),
                   pw.TableRow(children: [
@@ -318,7 +320,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                     ),
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text('AED ${vat.round()}'),
+                      child: pw.Text('AED ${vat.toStringAsFixed(2)}'),
                     ),
                   ]),
                   pw.TableRow(children: [
@@ -328,7 +330,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                     ),
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text('AED ${grandTotal.round()}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      child: pw.Text('AED ${grandTotal.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
                     ),
                   ]),
                 ],
@@ -772,10 +774,14 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final data = widget.order.data() as Map<String, dynamic>;
-    if (data['appointmentDate'] != null) {
-      appointmentDate = (data['appointmentDate'] as Timestamp).toDate();
+    final rawDate = data['appointmentDate'];
+
+    if (rawDate is Timestamp) {
+      appointmentDate = rawDate.toDate();
+    } else if (rawDate is String) {
+      appointmentDate = DateTime.tryParse(rawDate);
     } else {
-      appointmentDate = null; // or DateTime.now() if you prefer a fallback
+      appointmentDate = null; // Or DateTime.now() as fallback
     }
 
     return Scaffold(
@@ -889,14 +895,15 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                   children: [
                     const Padding(
                       padding: EdgeInsets.all(8.0),
-                      child: Text("No. of Boxes:", style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: Text(
+                        "No. of Boxes:",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                     Padding(
                       padding: const EdgeInsets.all(8.0),
-                      child: TextField(
+                      child: BoxCountField(
                         controller: boxesController,
-                        decoration: const InputDecoration(border: InputBorder.none),
-                        keyboardType: TextInputType.number,
                       ),
                     ),
                   ],
@@ -1165,6 +1172,69 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
           ],
         ),
       ),
+    );
+  }
+}
+class BoxCountField extends StatefulWidget {
+  final TextEditingController controller;
+
+  const BoxCountField({super.key, required this.controller});
+
+  @override
+  State<BoxCountField> createState() => _BoxCountFieldState();
+}
+
+class _BoxCountFieldState extends State<BoxCountField> {
+  bool isEditing = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = widget.controller.text.trim();
+
+    if (isEditing) {
+      // Show editable TextField
+      return Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: widget.controller,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              onSubmitted: (_) {
+                setState(() => isEditing = false);
+              },
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.check),
+            onPressed: () {
+              setState(() => isEditing = false);
+            },
+          ),
+        ],
+      );
+    }
+
+    // Display mode: either show "+" icon or number + edit icon
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Center(
+            child: value.isEmpty
+                ? const Text('+', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))
+                : Text(value, style: const TextStyle(fontSize: 20)),
+          ),
+        ),
+        IconButton(
+          icon: Icon(value.isEmpty ? Icons.add : Icons.edit),
+          onPressed: () {
+            setState(() {
+              isEditing = true;
+            });
+          },
+        ),
+      ],
     );
   }
 }

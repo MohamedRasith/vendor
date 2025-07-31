@@ -1,9 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:vendor/Pages/vendor_chat_page.dart';
+import 'package:vendor/Pages/create_query_with_admin.dart'; // Make sure this page exists
 
 class VendorTicketList extends StatelessWidget {
-  final String vendorName; // Pass vendorId here
+  final String vendorName;
 
   VendorTicketList({required this.vendorName});
 
@@ -12,8 +13,9 @@ class VendorTicketList extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-          backgroundColor: Colors.black,
-          title: Text('Vendor Tickets', style: TextStyle(color: Colors.white),)),
+        backgroundColor: Colors.black,
+        title: Text('Vendor Tickets', style: TextStyle(color: Colors.white)),
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('tickets')
@@ -39,18 +41,37 @@ class VendorTicketList extends StatelessWidget {
                   subtitle: Text(ticket['description']),
                   trailing: Icon(Icons.chat),
                   onTap: () {
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => VendorChatPage(
-                        ticketId: ticket.id,
-                        ticketTitle: ticket['title'],
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => VendorChatPage(
+                          ticketId: ticket.id,
+                          ticketTitle: ticket['title'],
+                        ),
                       ),
-                    ));
+                    );
                   },
                 ),
               );
             },
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CreateQueryWithAdmin(
+                vendorName: vendorName,
+              ),
+            ),
+          );
+        },
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        icon: Icon(Icons.add),
+        label: Text("Raise a Query"),
       ),
     );
   }

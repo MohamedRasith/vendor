@@ -5,6 +5,7 @@ import 'package:vendor/Pages/login_page.dart';
 import 'package:vendor/Pages/orders_list.dart';
 import 'package:vendor/Pages/product_dashboard.dart';
 import 'package:vendor/Pages/profile_screen.dart';
+import 'package:vendor/Pages/reports_view_page.dart';
 import 'package:vendor/Pages/vendor_tickets_page.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -17,7 +18,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int selectedIndex = 0;
 
-  final List<String> menuItems = ["Orders", "Products", "My Profile", "Queries?"];
+  final List<String> menuItems = ["Orders", "Products", "My Profile", "Queries?", "Reports"];
 
    List<Widget> screens = [];
 
@@ -36,7 +37,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const OrdersScreen(),
         ProductsListScreen(vendorName: vendorName),
         const MyProfileScreen(),
-        VendorTicketList(vendorName: vendorName,)
+        VendorTicketList(vendorName: vendorName,),
+        VendorReportsPage(loggedInVendorName: vendorName)
       ];
     });
   }
