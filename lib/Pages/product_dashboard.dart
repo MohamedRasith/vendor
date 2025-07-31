@@ -247,14 +247,21 @@ class _ProductsListScreenState extends State<ProductsListScreen> {
                                         message: 'Click to copy Purchase Price',
                                         child: InkWell(
                                           onTap: () {
+                                            final priceRaw = data['Purchase Price'];
+                                            final price = priceRaw is num
+                                                ? priceRaw.toDouble()
+                                                : double.tryParse(priceRaw?.toString() ?? '0') ?? 0.0;
+
                                             Clipboard.setData(
-                                              ClipboardData(text: 'AED ${data['Purchase Price'] ?? '0.00'}'),
+                                              ClipboardData(text: 'AED ${price.toStringAsFixed(2)}'),
                                             );
                                             ScaffoldMessenger.of(context).showSnackBar(
                                               const SnackBar(content: Text('Purchase Price copied')),
                                             );
                                           },
-                                          child: Text('AED ${data['Purchase Price'] ?? '0.00'}'),
+                                          child: Text(
+                                            'AED ${(data['Purchase Price'] is num ? (data['Purchase Price'] as num).toDouble() : double.tryParse(data['Purchase Price']?.toString() ?? '0') ?? 0.0).toStringAsFixed(2)}',
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -263,14 +270,21 @@ class _ProductsListScreenState extends State<ProductsListScreen> {
                                         message: 'Click to copy RSP',
                                         child: InkWell(
                                           onTap: () {
+                                            final rspRaw = data['RSP'];
+                                            final rsp = rspRaw is num
+                                                ? rspRaw.toDouble()
+                                                : double.tryParse(rspRaw?.toString() ?? '0') ?? 0.0;
+
                                             Clipboard.setData(
-                                              ClipboardData(text: 'AED ${data['RSP'] ?? '0.00'}'),
+                                              ClipboardData(text: 'AED ${rsp.toStringAsFixed(2)}'),
                                             );
                                             ScaffoldMessenger.of(context).showSnackBar(
                                               const SnackBar(content: Text('RSP copied')),
                                             );
                                           },
-                                          child: Text('AED ${data['RSP'] ?? '0.00'}'),
+                                          child: Text(
+                                            'AED ${(data['RSP'] is num ? (data['RSP'] as num).toDouble() : double.tryParse(data['RSP']?.toString() ?? '0') ?? 0.0).toStringAsFixed(2)}',
+                                          ),
                                         ),
                                       ),
                                     ),
