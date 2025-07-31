@@ -247,14 +247,15 @@ class _ProductsListScreenState extends State<ProductsListScreen> {
                                         message: 'Click to copy Purchase Price',
                                         child: InkWell(
                                           onTap: () {
+                                            final price = double.tryParse('${data['Purchase Price']}') ?? 0.0;
                                             Clipboard.setData(
-                                              ClipboardData(text: 'AED ${data['Purchase Price'] ?? '0.00'}'),
+                                              ClipboardData(text: 'AED ${price.toStringAsFixed(2)}'),
                                             );
                                             ScaffoldMessenger.of(context).showSnackBar(
                                               const SnackBar(content: Text('Purchase Price copied')),
                                             );
                                           },
-                                          child: Text('AED ${data['Purchase Price'] ?? '0.00'}'),
+                                          child: Text('AED ${(double.tryParse('${data['Purchase Price']}') ?? 0.0).toStringAsFixed(2)}'),
                                         ),
                                       ),
                                     ),
@@ -263,14 +264,15 @@ class _ProductsListScreenState extends State<ProductsListScreen> {
                                         message: 'Click to copy RSP',
                                         child: InkWell(
                                           onTap: () {
+                                            final rsp = double.tryParse('${data['RSP']}') ?? 0.0;
                                             Clipboard.setData(
-                                              ClipboardData(text: 'AED ${data['RSP'] ?? '0.00'}'),
+                                              ClipboardData(text: 'AED ${rsp.toStringAsFixed(2)}'),
                                             );
                                             ScaffoldMessenger.of(context).showSnackBar(
                                               const SnackBar(content: Text('RSP copied')),
                                             );
                                           },
-                                          child: Text('AED ${data['RSP'] ?? '0.00'}'),
+                                          child: Text('AED ${(double.tryParse('${data['RSP']}') ?? 0.0).toStringAsFixed(2)}'),
                                         ),
                                       ),
                                     ),
