@@ -1005,7 +1005,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                         rows: products.asMap().entries.map((entry) {
                           final index = entry.key;
                           final product = entry.value;
-                          final boxCount = product['boxCount'] ?? 0;
+                          final boxCount = product['requested'] ?? 0;
                           final unitCost = product['unitCost'] ?? 0.0;
                           int confirmed = product['confirmed'] ?? 0;
 

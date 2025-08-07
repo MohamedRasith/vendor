@@ -14,7 +14,7 @@ class VendorChatPage extends StatefulWidget {
 class _VendorChatPageState extends State<VendorChatPage> {
   final TextEditingController _messageController = TextEditingController();
   bool _isSending = false;
-  String _status = 'pending';
+  String? _status;
 
 
   Stream<QuerySnapshot> getMessages() {
@@ -66,8 +66,13 @@ class _VendorChatPageState extends State<VendorChatPage> {
       setState(() {
         _status = doc['status'] ?? 'pending';
       });
+    } else {
+      setState(() {
+        _status = 'pending';
+      });
     }
   }
+
   Future<void> updateStatus(String newStatus) async {
     await FirebaseFirestore.instance
         .collection('tickets')
@@ -76,12 +81,23 @@ class _VendorChatPageState extends State<VendorChatPage> {
 
     setState(() {
       _status = newStatus;
+      Navigator.pop(context);
     });
   }
 
 
   @override
   Widget build(BuildContext context) {
+    if (_status == null) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          title: Text("Chat - ${widget.ticketTitle}", style: TextStyle(color: Colors.white)),
+        ),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -91,7 +107,7 @@ class _VendorChatPageState extends State<VendorChatPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("Chat - ${widget.ticketTitle}", style: TextStyle(color: Colors.white)),
-            Text("Status: ${_status.toUpperCase() == "OPEN"?"Pending":_status}", style: TextStyle(fontSize: 12, color: Colors.white70)),
+            Text("Status: ${_status}", style: TextStyle(fontSize: 12, color: Colors.white70)),
           ],
         ),
       ),
@@ -127,84 +143,62 @@ class _VendorChatPageState extends State<VendorChatPage> {
             ),
           ),
           Divider(height: 1),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: InputDecoration(hintText: "Type a reply..."),
-                  ),
-                ),
-                _isSending
-                    ? Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-                    : IconButton(
-                  icon: Icon(Icons.send),
-                  onPressed: sendMessage,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: Align(
-        alignment: Alignment.bottomRight,
-        child: Container(
-          margin: const EdgeInsets.only(right: 16, bottom: 45),
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: Colors.black,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Theme(
-            data: Theme.of(context).copyWith(
-              popupMenuTheme: PopupMenuThemeData(
-                color: Colors.black,
-                textStyle: TextStyle(color: Colors.white),
-              ),
-            ),
-            child: PopupMenuButton<String>(
-              offset: Offset(0, -100), // show menu upward
-              color: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              onSelected: (value) => updateStatus(value),
-              itemBuilder: (context) => [
-                if (_status != 'on process')
-                  PopupMenuItem(
-                    value: 'on process',
-                    child: Text('Mark as On Process', style: TextStyle(color: Colors.white)),
-                  ),
-                if (_status != 'completed')
-                  PopupMenuItem(
-                    value: 'completed',
-                    child: Text('Mark as Completed', style: TextStyle(color: Colors.white)),
-                  ),
-              ],
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+          if (_status != "closed")
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
                 children: [
-                  Icon(Icons.settings, color: Colors.white),
-                  Text(
-                    "Click here\nto update status",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontSize: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      decoration: InputDecoration(hintText: "Type a reply..."),
+                    ),
+                  ),
+                  _isSending
+                      ? Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                      : IconButton(
+                    icon: Icon(Icons.send),
+                    onPressed: sendMessage,
                   ),
                 ],
               ),
             ),
+        ],
+      ),
+      floatingActionButton: _status == "closed"
+          ? null
+          : Align(
+        alignment: Alignment.bottomRight,
+        child: Container(
+          margin: const EdgeInsets.only(right: 16, bottom: 50),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.red,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: InkWell(
+            onTap: () => updateStatus('closed'),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.close, color: Colors.white),
+                Text(
+                  "Mark as Closed",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontSize: 10),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-
-
     );
   }
 }
