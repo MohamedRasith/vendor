@@ -113,9 +113,9 @@ class _CreateQueryWithAdminState extends State<CreateQueryWithAdmin> {
                       trailing: Text(
                         query['status'].toString().toUpperCase(),
                         style: TextStyle(
-                          color: query['status'] == 'completed'
+                          color: query['status'] == 'open'
                               ? Colors.green
-                              : query['status'] == 'on process'
+                              : query['status'] == 'closed'
                               ? Colors.orange
                               : Colors.red,
                         ),
