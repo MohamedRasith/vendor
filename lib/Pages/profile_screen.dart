@@ -105,30 +105,34 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Welcome, $vendorName', style: const TextStyle(fontSize: 22)),
-          const SizedBox(height: 8),
-          Text('Email: $vendorEmail'),
-          const SizedBox(height: 8),
-          Text('Mobile: $vendorMobile'),
-          const SizedBox(height: 8),
-          Text('City: $vendorCity'),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: logout,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Image.asset("assets/images/buybill.png", width: 200,),
+            Text('Welcome, $vendorName', style: const TextStyle(fontSize: 22)),
+            const SizedBox(height: 8),
+            Text('Email: $vendorEmail'),
+            const SizedBox(height: 8),
+            Text('Mobile: $vendorMobile'),
+            const SizedBox(height: 8),
+            Text('City: $vendorCity'),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: logout,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.logout),
+              label: const Text("Logout"),
             ),
-            icon: const Icon(Icons.logout),
-            label: const Text("Logout"),
-          ),
-        ],
-      )
+          ],
+        )
+      ),
     );
   }
 }

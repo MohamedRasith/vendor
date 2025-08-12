@@ -1,5 +1,11 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class VendorChatPage extends StatefulWidget {
   final String ticketId;
@@ -16,6 +22,25 @@ class _VendorChatPageState extends State<VendorChatPage> {
   bool _isSending = false;
   String? _status;
 
+  Uint8List? _selectedFileBytes;
+  String? _selectedFileName;
+
+  Future<void> pickDocument() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'png'],
+      withData: true, // important for web to get bytes
+    );
+
+    if (result != null && result.files.single.bytes != null) {
+      setState(() {
+        _selectedFileBytes = result.files.single.bytes;
+        _selectedFileName = result.files.single.name;
+        _messageController.text = result.files.single.name;
+      });
+    }
+  }
+
 
   Stream<QuerySnapshot> getMessages() {
     return FirebaseFirestore.instance
@@ -27,28 +52,45 @@ class _VendorChatPageState extends State<VendorChatPage> {
   }
 
   Future<void> sendMessage() async {
-    if (_messageController.text.trim().isEmpty) return;
+    if (_messageController.text.trim().isEmpty && _selectedFileBytes == null) return;
 
-    setState(() => _isSending = true); // Start loading
+    setState(() => _isSending = true);
 
+    String? fileUrl;
     try {
+      // If file is selected, upload to Firebase Storage
+      if (_selectedFileBytes != null) {
+        final storageRef = FirebaseStorage.instance
+            .ref()
+            .child('ticket_attachments/${widget.ticketId}/${DateTime.now().millisecondsSinceEpoch}_$_selectedFileName');
+
+        await storageRef.putData(_selectedFileBytes!);
+        fileUrl = await storageRef.getDownloadURL();
+      }
+
+
       await FirebaseFirestore.instance
           .collection('tickets')
           .doc(widget.ticketId)
           .collection('messages')
           .add({
         'message': _messageController.text.trim(),
+        'fileUrl': fileUrl, // null if no file
+        'fileName': _selectedFileName,
         'sender': 'vendor',
         'timestamp': Timestamp.now(),
       });
 
       _messageController.clear();
+      _selectedFileBytes = null;
+      _selectedFileName = null;
     } catch (e) {
       print("Send message error: $e");
     } finally {
-      setState(() => _isSending = false); // Stop loading
+      setState(() => _isSending = false);
     }
   }
+
 
   @override
   void initState() {
@@ -125,16 +167,51 @@ class _VendorChatPageState extends State<VendorChatPage> {
                   padding: EdgeInsets.all(8),
                   children: messages.map((doc) {
                     final isVendor = doc['sender'] == 'vendor';
-                    return Align(
-                      alignment: isVendor ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        margin: EdgeInsets.symmetric(vertical: 4),
-                        decoration: BoxDecoration(
-                          color: isVendor ? Colors.green[200] : Colors.grey[300],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(doc['message']),
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisAlignment:
+                        isVendor ? MainAxisAlignment.end : MainAxisAlignment.start,
+                        children: [
+                          // Constrain the bubble width (max 70% of screen width)
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.of(context).size.width * 0.7,
+                            ),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isVendor ? Colors.green[200] : Colors.grey[300],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (doc['message'] != null && doc['message'].isNotEmpty)
+                                    Text(doc['message']),
+                                  if (doc['fileUrl'] != null && (doc['fileUrl'] as String).isNotEmpty)
+                                    InkWell(
+                                      onTap: () => launchUrl(Uri.parse(doc['fileUrl'])),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.insert_drive_file, color: Colors.blue),
+                                          SizedBox(width: 4),
+                                          Flexible(
+                                            child: Text(
+                                              doc['fileName'] ?? 'Attachment',
+                                              style: TextStyle(color: Colors.blue),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   }).toList(),
@@ -148,6 +225,10 @@ class _VendorChatPageState extends State<VendorChatPage> {
               padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
                 children: [
+                  IconButton(
+                    icon: Icon(Icons.attach_file),
+                    onPressed: pickDocument,
+                  ),
                   Expanded(
                     child: TextField(
                       controller: _messageController,

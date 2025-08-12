@@ -830,6 +830,19 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                   ],
                 ),
 
+                TableRow(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Text("Invoice No:", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(data['invoiceNo'] ?? ''),
+                    ),
+                  ],
+                ),
+
 // Appointment ID - view only
                 TableRow(
                   children: [

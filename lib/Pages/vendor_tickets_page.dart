@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:vendor/Pages/vendor_chat_page.dart';
@@ -73,52 +74,73 @@ class VendorTicketList extends StatelessWidget {
           return Center(child: Text("No $statusFilter tickets found."));
         }
 
-        return ListView.builder(
-          itemCount: tickets.length,
-          itemBuilder: (context, index) {
-            final ticket = tickets[index];
-            return Card(
-              color: Colors.white,
-              child: ListTile(
-                title: Text(ticket['title']),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 10),
-                    richText("Ticket ID:", ticket.id),
-                    const SizedBox(height: 10),
-                    richText("Description:", ticket['description'] ?? ''),
-                    const SizedBox(height: 10),
-                    richText(
-                      "Created at:",
-                      DateFormat('dd MMM yyyy, hh:mm a')
-                          .format(ticket['createdAt'].toDate()),
+        return SingleChildScrollView(
+          child: DataTable(
+            columnSpacing: 20,
+            headingRowColor: MaterialStateColor.resolveWith(
+                  (states) => Colors.grey.shade200,
+            ),
+            columns: const [
+              DataColumn(label: Text("Ticket ID", style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text("Title", style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text("Description", style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text("Created At", style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text("Status", style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text("Chat", style: TextStyle(fontWeight: FontWeight.bold))),
+            ],
+            rows: tickets.map((ticket) {
+              final ticketId = ticket.id;
+              final title = ticket['title'] ?? '';
+              final description = ticket['description'] ?? '';
+              final createdAt = DateFormat('dd MMM yyyy, hh:mm a')
+                  .format(ticket['createdAt'].toDate());
+              final status = ticket['status'] ?? '';
+
+              // Helper for clickable cell with copy
+              DataCell copyCell(String text, {TextStyle? style}) {
+                return DataCell(
+                  Text(text, style: style),
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: text));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('"$text" copied')),
+                    );
+                  },
+                );
+              }
+
+              return DataRow(
+                cells: [
+                  copyCell(ticketId),
+                  copyCell(title),
+                  copyCell(description),
+                  copyCell(createdAt),
+                  copyCell(
+                    status,
+                    style: TextStyle(
+                      color: status == "open" ? Colors.green : Colors.red,
                     ),
-                    const SizedBox(height: 10),
-                    richText(
-                      "Status:",
-                      ticket['status'],
-                      valueColor: ticket['status'] == "open"
-                          ? Colors.green
-                          : Colors.red,
+                  ),
+                  DataCell(
+                    IconButton(
+                      icon: const Icon(Icons.chat, color: Colors.blue),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => VendorChatPage(
+                              ticketId: ticketId,
+                              ticketTitle: title,
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  ],
-                ),
-                trailing: Icon(Icons.chat),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => VendorChatPage(
-                        ticketId: ticket.id,
-                        ticketTitle: ticket['title'],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            );
-          },
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
         );
       },
     );
