@@ -976,7 +976,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                   const SizedBox(
                     width: 10,
                   ),
-                  Center(
+                  widget.order['invoiceNo'] != ""?Center(
                     child: SizedBox(
                       width: 300,
                       child: ElevatedButton.icon(
@@ -988,7 +988,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                         },
                       ),
                     ),
-                  ),
+                  ):Container(),
                 ],
               ),
             ),
